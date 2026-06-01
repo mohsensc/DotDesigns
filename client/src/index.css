@@ -1,0 +1,23 @@
+:root {
+  --cream-1: #ece7dd;
+  --cream-2: #e3ded3;
+  --gold: #ad8c4f;
+  --ink: #18150f;
+  --muted: #4a463e;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  min-height: 100vh;
+}

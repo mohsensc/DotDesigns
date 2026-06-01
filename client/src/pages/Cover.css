@@ -1,0 +1,209 @@
+.cover {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+}
+
+/* --- background field --- */
+.cover__field {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(105deg, var(--cream-1) 0%, var(--cream-2) 100%);
+  z-index: 0;
+}
+
+/* --- hero image: right half, full bleed --- */
+.cover__image {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 45%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 1;
+}
+
+/* soft fade blending the image's left edge into the stone field */
+.cover__image-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 45%;
+  width: 18%;
+  background-image: linear-gradient(
+    90deg,
+    var(--cream-1) 0%,
+    rgba(236, 231, 221, 0) 100%
+  );
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* --- thin gold inset frame --- */
+.cover__frame {
+  position: absolute;
+  inset: clamp(16px, 1.7vw, 24px);
+  border: 1px solid rgba(173, 140, 79, 0.5);
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* --- shared editorial small-caps label --- */
+.eyebrow {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.eyebrow--gold {
+  color: var(--gold);
+  font-size: 11px;
+}
+
+/* clickable nav labels */
+.eyebrow--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.eyebrow--link:hover {
+  color: var(--gold);
+}
+
+/* --- top navigation --- */
+.cover__nav {
+  position: absolute;
+  top: clamp(40px, 6vh, 56px);
+  left: clamp(40px, 4.4vw, 64px);
+  right: clamp(40px, 4.4vw, 64px);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cover__links {
+  display: flex;
+  gap: 36px;
+}
+
+/* --- centered content column --- */
+.cover__content {
+  position: absolute;
+  top: 50%;
+  left: clamp(40px, 4.4vw, 64px);
+  transform: translateY(-50%);
+  z-index: 5;
+  width: min(600px, 60vw);
+  display: flex;
+  flex-direction: column;
+}
+
+.headline {
+  margin: 22px 0 0;
+  font-size: clamp(44px, 5.4vw, 78px);
+  font-weight: 300;
+  line-height: 0.98;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+.headline .amp {
+  color: var(--gold);
+  font-style: italic;
+}
+
+.headline em {
+  font-style: italic;
+}
+
+.lede {
+  margin: 28px 0 0;
+  max-width: 380px;
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* --- CTA --- */
+.enter {
+  margin: 40px 0 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.enter__label {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.enter__rule {
+  flex: 1;
+  height: 1px;
+  background-color: rgba(173, 140, 79, 0.5);
+  transition: background-color 0.4s ease;
+}
+
+.enter__arrow {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 20px;
+  color: var(--gold);
+  transition: transform 0.4s ease;
+}
+
+.enter:hover .enter__rule {
+  background-color: var(--gold);
+}
+
+.enter:hover .enter__arrow {
+  transform: translateX(6px);
+}
+
+/* --- footer marker --- */
+.cover__footer {
+  position: absolute;
+  bottom: clamp(40px, 6vh, 52px);
+  left: clamp(40px, 4.4vw, 64px);
+  z-index: 5;
+}
+
+/* --- responsive: stack image behind text on small screens --- */
+@media (max-width: 820px) {
+  .cover__image {
+    width: 100%;
+    opacity: 0.22;
+  }
+  .cover__image-fade {
+    display: none;
+  }
+  .cover__content {
+    width: min(560px, 86vw);
+  }
+  .lede {
+    font-size: 18px;
+  }
+  .cover__links {
+    display: none;
+  }
+}
