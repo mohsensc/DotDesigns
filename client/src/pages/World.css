@@ -1,0 +1,91 @@
+/* ==========================================================================
+   DOT Designs — scroll-world theme (dark quiet-luxury)
+   --------------------------------------------------------------------------
+   The engine wraps its defaults in @layer sw, so these UNLAYERED rules win
+   regardless of injection order. We set the documented CSS custom properties
+   and adapt the few chrome elements the engine styles with light-mode #fff
+   mixes so they read correctly on a near-black ground.
+   ========================================================================== */
+
+/* Theme tokens. Set on :root (so html/body background picks up --sw-bg) and on
+   .sw-root (the engine container) so an unlayered rule beats the layered
+   .sw-root defaults on the container element itself. */
+:root,
+.sw-root {
+  --sw-bg: #141210; /* near-black warm charcoal */
+  --sw-ink: #f2ede4; /* ivory */
+  --sw-ink-soft: #a79e8c; /* muted warm grey */
+  --sw-accent: #b19556; /* gold */
+  --sw-font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+  --sw-font-body: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    system-ui, sans-serif;
+}
+
+/* Neutralise the engine's placeholder brand (a CSS-drawn gradient mark + name)
+   but KEEP its layout box as a left spacer: topbar uses justify-content:
+   space-between, so a ~150px invisible brand keeps the nav centred and clear of
+   our real logo lockup, which is overlaid separately (.dot-brand). */
+.sw-root .sw-brand {
+  visibility: hidden;
+  width: 152px;
+  pointer-events: none;
+}
+
+/* Chrome adapted for the dark ground ------------------------------------- */
+
+.sw-root .sw-topcta {
+  background: var(--sw-accent);
+  color: #141210;
+}
+
+.sw-root .sw-nav {
+  background: color-mix(in srgb, #ffffff 6%, transparent);
+  border-color: color-mix(in srgb, var(--sw-accent) 26%, transparent);
+}
+.sw-root .sw-nav__item.is-active {
+  color: #141210;
+}
+
+.sw-root .sw-copy__tags li {
+  background: color-mix(in srgb, var(--sw-accent) 12%, #141210);
+  color: color-mix(in srgb, var(--sw-accent) 82%, #ffffff);
+  border-color: color-mix(in srgb, var(--sw-accent) 34%, transparent);
+}
+
+.sw-root .sw-route__label {
+  background: color-mix(in srgb, #000000 55%, transparent);
+  color: var(--sw-ink);
+  border-color: color-mix(in srgb, var(--sw-accent) 22%, transparent);
+}
+
+.sw-root .sw-btn--primary {
+  background: var(--sw-accent);
+  color: #141210;
+}
+
+/* Soften the atmosphere glow: the engine default paints a bright white core
+   that glares on a dark scene. Keep a quiet gold halo instead. */
+.sw-root .sw-sky__glow {
+  background: radial-gradient(
+    60% 42% at 74% 16%,
+    color-mix(in srgb, var(--sw-accent) 20%, transparent),
+    transparent 70%
+  );
+}
+
+/* Real brand chrome ------------------------------------------------------- */
+
+.dot-brand {
+  position: fixed;
+  top: clamp(12px, 2vw, 20px);
+  left: clamp(18px, 5vw, 64px);
+  z-index: 200; /* above the engine topbar (z-index 50) */
+  pointer-events: none;
+}
+.dot-brand__logo {
+  display: block;
+  width: 150px;
+  max-width: 42vw;
+  height: auto;
+  /* used untouched — no filters, no recolour */
+}
