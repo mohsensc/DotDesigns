@@ -9,12 +9,12 @@ import dotGold from "../assets/dot-gold.png";
 // ---------------------------------------------------------------------------
 // Deck — per-section copy for the DOT Designs gallery flight.
 //
-// This is the REAL approved copy deck, wired verbatim. The film is the final
-// 4-leg cut: Arrival -> The Hall -> The Studio -> Materials, one continuous
-// flight (architecture A, no connector clips). Two further deck beats shot for
-// a future 6-video expansion (the centrepiece figure, then the signature gold
-// wave) are preserved as a commented block inside `sections` below, in the
-// order they slot into the film, ready to uncomment when those clips land.
+// This is the REAL approved copy deck. The film is one continuous flight
+// (architecture A, no connector clips) carrying five stops: Arrival -> The Hall
+// -> The Wall -> The Studio -> Materials. Four clips cover them; atelier.mp4 is
+// read twice over complementary `range` windows (see below). One further deck
+// beat, the centrepiece figure, is preserved as a commented block inside
+// `sections`, in the order it slots into the film, ready for its clip.
 //
 // brandLine feeds the logo overlay's accessible tagline. deckCta holds the one
 // call to action; the engine renders only its label/href, so those are
@@ -37,16 +37,16 @@ const DECK: ScrollWorldConfig = {
   atmosphere: true,
   crossfade: 0.08, // continuous take: seam dissolve width (vh), engine-global
   connectors: [], // architecture A — one continuous flight, no connector clips
-  // The camera parks on each scene's arrival frame for the last third of that
-  // scene's scroll range, and the only positions a visitor can rest at are those
-  // arrivals and each scene's opening frame. Flights and seam dissolves are
-  // always crossed by an animated step, never dragged through by hand.
+  // The camera parks on each scene's settle frame for a stretch of that scene's
+  // scroll range. Scrolling itself stays native and one to one; those parked
+  // frames are simply magnetic, so a gesture that ends mid-flight or mid-dissolve
+  // eases onto the nearest of them rather than staying there.
   hold: 0.26,
   snap: true,
   // Scroll itself is native and one to one; stepScale only paces the discrete
   // moves — an arrow key, a nav click — where a slower, cinematic glide reads as
   // deliberate rather than sluggish.
-  stepScale: 2,
+  stepScale: 4,
   // Nothing that reads as a scrollbar: neither the right-hand route rail (the
   // topbar nav already covers jumping between stops) nor the hairline progress
   // bar across the top.
@@ -74,12 +74,10 @@ const DECK: ScrollWorldConfig = {
         eyebrow: "ARCHITECTURAL DESIGNER · TORONTO, CANADA",
         title: "Where Sculpture Meets Architecture",
         body: "Handcrafted wall sculpture for exceptional interiors. Every project begins with a blank surface and ends with a piece made for one room only.",
-        tags: ["Bas Relief", "Interior Installations", "Statement Pieces"],
       },
       eyebrow: "ARCHITECTURAL SCULPTURAL ART",
       title: "Sculpted by Light",
       body: "Where surface, shadow, and light become one. Each piece is shaped by hand and finished for its room.",
-      tags: ["Toronto, Canada", "Bespoke"],
     },
     {
       id: "gallery",
@@ -100,7 +98,6 @@ const DECK: ScrollWorldConfig = {
       eyebrow: "THE WORK",
       title: "More Than a Wall",
       body: "Monumental relief panels, each shaped by hand and finished for the space it lives in.",
-      tags: ["Hand Sculpted", "Bas Relief", "High Relief"],
     },
 
     // -- The Wall / The Studio: one clip, two stops ------------------------
@@ -128,7 +125,6 @@ const DECK: ScrollWorldConfig = {
       eyebrow: "SIGNATURE",
       title: "The Surface Shifts",
       body: "A rippling gold relief that changes as you move, the light traveling every fold with you.",
-      tags: ["22K Satin Gold", "Curved Surface", "Integrated Lighting"],
     },
     {
       id: "atelier",
@@ -144,7 +140,6 @@ const DECK: ScrollWorldConfig = {
       eyebrow: "IN THE STUDIO",
       title: "Shaped by Hand",
       body: "Hajar Sarafan sculpts every piece herself in Toronto, working plaster and light for one room only.",
-      tags: ["No molds", "No mass production", "Original work"],
     },
 
     // -- RESERVED: the sixth beat -------------------------------------------
@@ -176,7 +171,6 @@ const DECK: ScrollWorldConfig = {
       eyebrow: "THE FINISHES",
       title: "Let's Create Something Original",
       body: "Gold leaf, plaster, and patient hands, brought together into a piece that belongs only to your space.",
-      tags: ["Plaster", "22K Satin Gold", "Venetian White"],
       // The closing section carries the deck CTA plus the contact address.
       cta: {
         primary: { label: deckCta.label, href: deckCta.href },

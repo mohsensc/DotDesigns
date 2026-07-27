@@ -467,14 +467,18 @@ function mountScrollWorld(container, config) {
       // the stylesheet owns the block's centring transform, and an inline one
       // would replace it (dropping translateY(-50%)) and push tall blocks such as
       // the closing CTA off the bottom of the viewport.
-      c.style.setProperty('--sw-shift', reduce ? '0vh' : ((0.5 - pr) * 4).toFixed(3) + 'vh');
+      // Shallow parallax. Stations do not all sit at the same `pr` — the closing
+      // one rests at the very end of its range while the others rest mid-hold — so
+      // a deep travel here would land the type at visibly different heights from
+      // one stop to the next, which is exactly what the top anchor is for.
+      c.style.setProperty('--sw-shift', reduce ? '0vh' : ((0.5 - pr) * 1.5).toFixed(3) + 'vh');
       c.style.pointerEvents = cop > 0.5 ? 'auto' : 'none';
 
       const ic = intros[i];
       if (ic) {
         const icop = (before || after) ? 0 : smooth(1 - pr / Math.max(1e-4, rise0 * 0.72));
         ic.style.opacity = icop;
-        ic.style.setProperty('--sw-shift', reduce ? '0vh' : (-pr * 5).toFixed(3) + 'vh');
+        ic.style.setProperty('--sw-shift', reduce ? '0vh' : (-pr * 2).toFixed(3) + 'vh');
         ic.style.pointerEvents = icop > 0.5 ? 'auto' : 'none';
       }
     }
@@ -553,7 +557,7 @@ function mountScrollWorld(container, config) {
         const y = window.scrollY || window.pageYOffset;
         const s = stations[nearestStation(y)];
         const d = Math.abs(s - y);
-        if (d > 2) tweenTo(s, Math.min(760, Math.max(320, (d / vh) * 900)));
+        if (d > 2) tweenTo(s, Math.min(1520, Math.max(640, (d / vh) * 1800)));
       }, 140);
     }
   }, { passive: true });
@@ -670,13 +674,19 @@ function injectCSS() {
   .sw-copylayer{position:fixed;inset:0;z-index:20;pointer-events:none;}
   .sw-copylayer::before{content:"";position:absolute;inset:0;width:min(58vw,780px);background:linear-gradient(90deg,var(--sw-bg) 0%,color-mix(in srgb,var(--sw-bg) 82%,transparent) 34%,color-mix(in srgb,var(--sw-bg) 40%,transparent) 62%,transparent 100%);}
   /* Bounded box, not a centred point: top/bottom insets keep the block inside the
-     safe band between the topbar and the scroll hint, and the content is centred
-     within it. A tall block (the closing scene carries eyebrow + title + body +
-     tags + CTA) therefore grows into the available height instead of hanging off
-     the bottom of the viewport with its call to action cut off. The parallax
-     offset arrives as --sw-shift so this transform is never replaced inline. */
+     safe band between the topbar and the scroll hint, so a tall block (the closing
+     scene carries eyebrow + title + body + CTA) grows into the available height
+     instead of hanging off the bottom with its call to action cut off.
+
+     Anchored to the TOP of that band rather than centred within it. Centring makes
+     every scene's counter, eyebrow and title start at a different height, because
+     each block is a different length — so stepping from stop to stop slides the
+     type up and down against a camera that is meanwhile holding still. Anchored,
+     the three of them land on exactly the same line every time and only the body
+     below them changes depth. The parallax offset arrives as --sw-shift so this
+     transform is never replaced inline. */
   .sw-copy{position:absolute;left:clamp(18px,5vw,64px);top:clamp(140px,20vh,184px);bottom:clamp(72px,12vh,116px);
-    width:min(42vw,460px);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;
+    width:min(42vw,460px);display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;
     opacity:0;transform:translateY(var(--sw-shift,0vh));will-change:opacity,transform;}
   .sw-copy--intro .sw-copy__title{font-size:clamp(2.3rem,5vw,3.9rem);}
   .sw-copy__num{font-family:ui-monospace,Menlo,monospace;font-size:.74rem;letter-spacing:.12em;color:var(--sw-ink-soft);}
