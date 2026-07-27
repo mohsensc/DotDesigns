@@ -150,7 +150,10 @@ const DECK: ScrollWorldConfig = {
 
     {
       id: "materials",
-      label: "Contact",
+      // Named for its subject, not its job: the topbar already carries the
+      // designated CTA, so this stop does not need to advertise itself as the
+      // contact page. The address still sits under the button below.
+      label: "Materials",
       still: "/world/materials.webp",
       clip: "/world/vid/materials.mp4",
       accent: "#F2EDE4",
@@ -159,8 +162,7 @@ const DECK: ScrollWorldConfig = {
       title: "Let's Create Something Original",
       body: "Gold leaf, plaster, and patient hands, brought together into a piece that belongs only to your space.",
       tags: ["Plaster", "22K Satin Gold", "Venetian White"],
-      // The closing section carries the deck CTA plus the contact address, which
-      // is what makes this final stop the materials AND contact page.
+      // The closing section carries the deck CTA plus the contact address.
       cta: {
         primary: { label: deckCta.label, href: deckCta.href },
         secondary: { label: deckCta.contactLines[1], href: deckCta.href },

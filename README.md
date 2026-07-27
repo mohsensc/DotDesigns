@@ -4,7 +4,7 @@ A **scroll-scrubbed camera flight** through the DOT gallery. The home page (`/`)
 is a cinematic "scroll world": as the visitor scrolls, a pre-rendered camera
 flies from outside each scene into its interior and flows on to the next with no
 cuts — one continuous take through five stops (Arrival → The Hall → The Wall →
-The Studio → Contact).
+The Studio → Materials).
 
 Built as a React + TypeScript (Vite) client with a Node/Express server.
 
