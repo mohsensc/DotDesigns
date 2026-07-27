@@ -38,12 +38,29 @@
   color: #141210;
 }
 
+/* The nav floats over scenes that swing from near-black (the hall) to almost
+   white (the studio, the worktable). A near-transparent pill leaves the labels
+   unreadable on the bright ones, so the pill carries its own dark ground. */
 .sw-root .sw-nav {
-  background: color-mix(in srgb, #ffffff 6%, transparent);
-  border-color: color-mix(in srgb, var(--sw-accent) 26%, transparent);
+  background: color-mix(in srgb, #141210 58%, transparent);
+  border-color: color-mix(in srgb, var(--sw-accent) 30%, transparent);
+}
+.sw-root .sw-nav__item {
+  color: color-mix(in srgb, var(--sw-ink) 76%, transparent);
+}
+.sw-root .sw-nav__item:hover {
+  color: var(--sw-ink);
 }
 .sw-root .sw-nav__item.is-active {
   color: #141210;
+}
+
+/* The counter and eyebrow sit above the copy scrim's strongest band and can land
+   on a bright part of a scene. The title and body already carry a shadow; give
+   these the same so the whole block stays legible on the pale scenes. */
+.sw-root .sw-copy__num,
+.sw-root .sw-copy__eyebrow {
+  text-shadow: 0 1px 12px color-mix(in srgb, var(--sw-bg) 88%, transparent);
 }
 
 .sw-root .sw-copy__tags li {
@@ -88,4 +105,79 @@
   max-width: 42vw;
   height: auto;
   /* used untouched — no filters, no recolour */
+}
+
+/* Loading gate ------------------------------------------------------------
+   Covers everything (engine chrome is z-index 50, the logo lockup 200) until
+   every clip is decodable. The film is ~40 MB, so this is a real wait on a cold
+   cache: show the progress honestly rather than an indeterminate spinner. */
+
+.dot-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: var(--sw-bg);
+  color: var(--sw-ink);
+  text-align: center;
+  padding: 24px;
+}
+.dot-loader__logo {
+  width: 180px;
+  max-width: 54vw;
+  height: auto;
+  animation: dot-loader-breathe 3.2s ease-in-out infinite;
+}
+.dot-loader__line {
+  margin: 0;
+  font-family: var(--sw-font-body);
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sw-ink-soft);
+}
+.dot-loader__bar {
+  width: min(260px, 62vw);
+  height: 2px;
+  background: color-mix(in srgb, var(--sw-accent) 20%, transparent);
+  overflow: hidden;
+}
+.dot-loader__bar span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  background: var(--sw-accent);
+  transition: transform 0.45s ease;
+}
+.dot-loader__pct {
+  margin: 0;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: color-mix(in srgb, var(--sw-accent) 75%, var(--sw-ink));
+}
+
+@keyframes dot-loader-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot-loader__logo {
+    animation: none;
+  }
+  .dot-loader__bar span {
+    transition: none;
+  }
 }

@@ -77,6 +77,22 @@ function mountScrollWorld(container, config) {
   const DIVE_W = config.diveScroll || 1.3;
   const CONN_W = config.connScroll || 0.9;
   const CROSSFADE = (config.crossfade != null) ? config.crossfade : 0.12;  // seam dissolve width (vh)
+  // HOLD — trailing fraction of a dive's scroll range where the clip is parked on
+  // its final (arrival) frame instead of still scrubbing. This is what creates a
+  // second stable resting frame per scene: the flight completes, then the camera
+  // sits still while the copy is read. 0 = the old behaviour (scrub to the seam).
+  const HOLD = Math.min(0.8, Math.max(0, config.hold != null ? config.hold : 0));
+  // SNAP — station-to-station navigation. With it on, the only scroll positions a
+  // visitor can come to rest at are the stations (each scene's opening frame and
+  // its arrival frame); every position between them is traversed by an animated
+  // tween, so a flight or a seam dissolve always completes rather than being
+  // dragged through by hand. Opt-in.
+  const SNAP = config.snap === true;
+  // PRELOAD — fetch every clip up front rather than lazily near the viewport, and
+  // report progress so the host page can hold a loading screen until the whole
+  // film is decodable. Without it the first scenes scrub as stills until their
+  // blobs land, which reads as "the animation is missing".
+  const PRELOAD = config.preload === true || config.preload === 'all';
   const N = SECTIONS.length;
   if (!N) return;
 
@@ -87,7 +103,8 @@ function mountScrollWorld(container, config) {
   const SEGMENTS = [];
   SECTIONS.forEach((s, i) => {
     const dive = { kind: 'dive', si: i, clip: s.clip, clipM: s.clipMobile, still: s.still, stillM: s.stillMobile,
-                   accent: s.accent, w: s.scroll || DIVE_W, linger: s.linger || 0 };
+                   accent: s.accent, w: s.scroll || DIVE_W, linger: s.linger || 0, range: s.range,
+                   settle: s.settle };
     SEGMENTS.push(dive);
     s._seg = dive;
     // A connector is optional: if connectors[i] is falsy, the two dives simply
@@ -147,17 +164,24 @@ function mountScrollWorld(container, config) {
   });
 
   // per-section copy / route / nav
-  const copies = [], dots = [];
+  //
+  // `intro` is an optional second copy block for a section, shown while the scene
+  // is still at its opening frame and retired as the flight starts. It exists so
+  // the landing scene can greet you before the section's own copy lands with the
+  // camera, instead of opening on a mid-film statement.
+  const copies = [], intros = [], dots = [];
   SECTIONS.forEach((s, i) => {
     const c = el('article', 'sw-copy'); c.style.setProperty('--sw-accent', s.accent || '');
-    c.innerHTML =
-      `<span class="sw-copy__num">${pad(i + 1)} / ${pad(N)}</span>` +
-      (s.eyebrow ? `<span class="sw-copy__eyebrow">${esc(s.eyebrow)}</span>` : '') +
-      (s.title ? `<h2 class="sw-copy__title">${esc(s.title)}</h2>` : '') +
-      (s.body ? `<p class="sw-copy__body">${esc(s.body)}</p>` : '') +
-      (s.tags && s.tags.length ? `<ul class="sw-copy__tags">${s.tags.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
-      (s.cta ? `<div class="sw-copy__cta">${ctaBtns(s.cta)}</div>` : '');
+    c.innerHTML = `<span class="sw-copy__num">${pad(i + 1)} / ${pad(N)}</span>` + copyHTML(s);
     copylayer.appendChild(c); copies.push(c);
+
+    let ic = null;
+    if (s.intro) {
+      ic = el('article', 'sw-copy sw-copy--intro'); ic.style.setProperty('--sw-accent', s.accent || '');
+      ic.innerHTML = copyHTML(s.intro);
+      copylayer.appendChild(ic);
+    }
+    intros.push(ic);
 
     const dot = el('button', 'sw-route__dot'); dot.style.setProperty('--sw-accent', s.accent || '');
     dot.innerHTML = `<span class="sw-route__label">${esc(s.label || '')}</span><i></i>`;
@@ -176,8 +200,29 @@ function mountScrollWorld(container, config) {
   // (where the copy peaks) and moves quicker near the seams. L=0 linear, L=1 full
   // mid-scene pause. f(0)=0, f(1)=1 always, so seam frames are untouched.
   const lingerEase = (x, L) => { L = clamp(L); const c = x - 0.5; return (1 - L) * x + L * (4 * c * c * c + 0.5); };
+  // A dive's scroll range splits into three phases when HOLD is on:
+  //   [0, FLIGHT_END]        fly in, clip 0 → the scene's `settle` frame
+  //   [FLIGHT_END, HOLD_END] parked on `settle` — this is the arrival station
+  //   [HOLD_END, 1]          release the tail, `settle` → end of the clip
+  // The third phase matters because these clips are one continuous take: each one
+  // spends its last beat gliding toward the NEXT room, so its final frame is a
+  // doorway, not a destination. Parking on `settle` instead of the last frame is
+  // what keeps a scene's resting image its own subject.
+  const FLIGHT_END = HOLD > 0 ? (1 - HOLD) * 0.68 : 1;
+  const HOLD_END = HOLD > 0 ? FLIGHT_END + HOLD : 1;
+  function segProgress(s, local) {
+    if (HOLD <= 0 || s.kind !== 'dive') return s.linger ? lingerEase(local, s.linger) : local;
+    const settle = (s.settle != null) ? clamp(s.settle) : 1;
+    if (local <= FLIGHT_END) {
+      const x = FLIGHT_END > 0 ? local / FLIGHT_END : 1;
+      return (s.linger ? lingerEase(x, s.linger) : x) * settle;
+    }
+    if (local <= HOLD_END) return settle;
+    return settle + ((local - HOLD_END) / Math.max(1e-4, 1 - HOLD_END)) * (1 - settle);
+  }
   let vh = window.innerHeight, stageX = 0, totalW = 0, activeIndex = -1, ticking = false;
   let laidOutW = window.innerWidth;   // width the current layout was computed at (see onResize)
+  let stations = [], tween = null, inputLock = 0, settleTimer = 0;
 
   function layout() {
     vh = window.innerHeight;
@@ -187,12 +232,139 @@ function mountScrollWorld(container, config) {
     SEGMENTS.forEach(s => { s.start = off * vh; off += s.w; s.end = off * vh; });
     totalW = off;
     track.style.height = (totalW * vh + vh) + 'px';   // +1vh so the last flight completes
+    buildStations();
     read();
+  }
+
+  // ---- stations ------------------------------------------------------------
+  // The scroll positions a visitor is allowed to come to rest at:
+  //   the film's very first frame, camera still outside the first room, and
+  //   each scene's arrival — inside its HOLD window, camera landed and parked,
+  //   that scene's copy fully up.
+  // Only the FIRST scene contributes an opening station. This is one continuous
+  // take: every later scene opens on the frame its predecessor closed on (that is
+  // what makes the seams invisible), so an opening station at each seam would be
+  // a step that advances the scroll without changing the picture. Everything
+  // between stations is mid-flight or mid-dissolve and is only ever crossed by an
+  // animated tween (see gotoStation), never parked in.
+  function buildStations() {
+    const maxY = Math.max(0, totalW * vh);
+    stations = [];
+    const arriveLocal = HOLD > 0 ? FLIGHT_END + HOLD / 2 : 1;
+    SEGMENTS.forEach((s, i) => {
+      if (s.kind !== 'dive') return;
+      const arrive = Math.min(s.start + (s.end - s.start) * arriveLocal, maxY);
+      s._openY = s.start;
+      s._arriveY = arrive;
+      if (i === 0) stations.push(s.start);
+      stations.push(arrive);
+    });
+    // Land the final station on the document bottom so the closing scene has no
+    // dead scroll past its own resting frame.
+    if (stations.length) {
+      stations[stations.length - 1] = maxY;
+      SEGMENTS[SEGMENTS.length - 1]._arriveY = maxY;
+    }
+    stations = stations
+      .sort((a, b) => a - b)
+      .filter((v, i, a) => i === 0 || v - a[i - 1] > 8);
+  }
+
+  function nearestStation(y) {
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < stations.length; i++) {
+      const d = Math.abs(stations[i] - y);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    return bi;
+  }
+
+  // Animated travel to an absolute scroll position. Native smooth scrolling is
+  // not used: its duration is UA-defined and can be interrupted by the very wheel
+  // events we are suppressing, which leaves the page parked mid-dissolve.
+  function tweenTo(y, dur) {
+    y = Math.max(0, Math.min(totalW * vh, y));
+    const from = window.scrollY || window.pageYOffset;
+    const dist = y - from;
+    if (Math.abs(dist) < 1) return;
+    if (reduce) { window.scrollTo(0, y); return; }
+    const t0 = performance.now();
+    const D = dur || Math.min(1150, Math.max(560, (Math.abs(dist) / vh) * 700));
+    const token = {};
+    tween = token;
+    const step = now => {
+      if (tween !== token) return;             // superseded or cancelled
+      const p = Math.min(1, (now - t0) / D);
+      const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;   // easeInOutCubic
+      window.scrollTo(0, from + dist * e);
+      if (p < 1) requestAnimationFrame(step);
+      else { tween = null; inputLock = performance.now() + 260; }
+    };
+    requestAnimationFrame(step);
+  }
+
+  // One step along the station chain, in the direction of the gesture. If we are
+  // adrift between stations (scrollbar drag, deep link, resize) the first step
+  // lands on the station ahead in that direction rather than skipping one.
+  function gotoStation(dir) {
+    if (!stations.length) return;
+    const y = window.scrollY || window.pageYOffset;
+    const i = nearestStation(y);
+    const settled = Math.abs(stations[i] - y) < 6;
+    let t;
+    if (settled) t = i + dir;
+    else if (dir > 0) t = stations[i] > y ? i : i + 1;
+    else t = stations[i] < y ? i : i - 1;
+    t = Math.max(0, Math.min(stations.length - 1, t));
+    tweenTo(stations[t]);
   }
 
   function jumpTo(i) {
     const seg = SECTIONS[i]._seg;
+    if (SNAP) { tweenTo(seg._arriveY != null ? seg._arriveY : seg.start); return; }
     window.scrollTo({ top: seg.start + (seg.end - seg.start) * 0.5, behavior: reduce ? 'auto' : 'smooth' });
+  }
+
+  // ---- readiness accounting (drives the host page's loading gate) -----------
+  // A clip counts as settled once it is decodable (metadata in) or has failed for
+  // good. Failures still count so a single missing file can never wedge a page
+  // that is waiting on onReady before it reveals itself.
+  const clipSegs = SEGMENTS.filter(s => s.clip);
+  let settledClips = 0, announcedReady = false;
+  function announceReady() {
+    if (announcedReady) return;
+    announcedReady = true;
+    if (config.onReady) { try { config.onReady(); } catch (e) {} }
+  }
+  function noteSettled() {
+    settledClips++;
+    if (config.onProgress) { try { config.onProgress(settledClips, clipSegs.length); } catch (e) {} }
+    if (settledClips >= clipSegs.length) announceReady();
+  }
+  // Reduced motion never loads a clip, and a config with no clips has nothing to
+  // wait for; in both cases the page is ready as soon as it is mounted.
+  if (reduce || !clipSegs.length) {
+    if (config.onProgress) { try { config.onProgress(clipSegs.length, clipSegs.length); } catch (e) {} }
+    announceReady();
+  }
+
+  // One fetch per URL. Two scenes can share a clip (a `range` each) to split one
+  // continuous take into separate stops without re-downloading it; they still get
+  // a video element each, since both are on screen together through the dissolve.
+  const blobCache = new Map();
+  function fetchClip(url) {
+    if (!blobCache.has(url)) {
+      blobCache.set(url, fetch(url).then(r => r.ok ? r.blob() : Promise.reject(new Error('404'))));
+    }
+    return blobCache.get(url);
+  }
+
+  // The slice of a clip a segment plays, as [0..1] fractions of its duration.
+  function rangeOf(s) {
+    const r = s.range;
+    if (!r || r.length !== 2) return [0, 1];
+    const a = clamp(r[0]), b = clamp(r[1]);
+    return b > a ? [a, b] : [0, 1];
   }
 
   function loadClip(s) {
@@ -202,21 +374,31 @@ function mountScrollWorld(container, config) {
     s.loading = true;
     // Serve the lighter mobile encode on phones when one was provided.
     const url = (isMobile() && s.clipM) ? s.clipM : s.clip;
-    fetch(url).then(r => r.ok ? r.blob() : Promise.reject(new Error('404')))
+    fetchClip(url)
       .then(blob => {
         const v = document.createElement('video');
         v.className = 'sw-scene__video';
         v.muted = true; v.playsInline = true; v.preload = 'auto';
         v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
         v.src = URL.createObjectURL(blob);
-        v.addEventListener('loadedmetadata', () => { s.ready = true; read(); });
+        v.addEventListener('loadedmetadata', () => {
+          s.ready = true;
+          // Park on this segment's own first frame so a `seeked` fires and the
+          // scene swaps from its still to real video. At scroll 0 the raf loop's
+          // target and current time already agree, so without this nudge the
+          // opening scene would sit on its poster until the visitor scrolled —
+          // the clip present but never shown.
+          try { v.currentTime = rangeOf(s)[0] * (v.duration || 0) + 0.001; } catch (e) {}
+          noteSettled();
+          read();
+        });
         // Reveal the video (hide the still poster) only once a real frame has
         // painted — on iOS a seeked-but-never-played muted video stays blank, so
         // hiding the still on metadata alone would flash an empty scene.
         v.addEventListener('seeked', () => { s.el.classList.add('has-clip'); }, { once: true });
         v.addEventListener('loadeddata', () => { try { v.pause(); } catch (e) {} if (userReady) primeVideo(v); });
         s.el.appendChild(v); s.video = v; s.hasClip = true;
-      }).catch(() => { s.loading = false; });
+      }).catch(() => { s.loading = false; noteSettled(); });
   }
 
   function read() {
@@ -227,32 +409,61 @@ function mountScrollWorld(container, config) {
 
     for (let i = 0; i < NSEG; i++) {
       const s = SEGMENTS[i];
-      if (y > s.start - 1.6 * vh && y < s.end + 1.6 * vh) loadClip(s);
+      if (!PRELOAD && y > s.start - 1.6 * vh && y < s.end + 1.6 * vh) loadClip(s);
       const local = clamp((y - s.start) / (s.end - s.start), 0, 1);
-      s.target = s.linger ? lingerEase(local, s.linger) : local;
+      const flight = segProgress(s, local);
+      s.target = flight;
       let outside = 0;
       if (y < s.start) outside = s.start - y; else if (y > s.end) outside = y - s.end;
       const op = smooth(1 - outside / fade);
       s.el.style.opacity = op; s.visible = op > 0.001;
       s.el.style.zIndex = (i === ci) ? '120' : String(100 + Math.round(op * 10));
       if (!s.hasClip || !s.ready) {
-        const sc = reduce ? 1 : 1.03 + local * 0.14;
+        const sc = reduce ? 1 : 1.03 + flight * 0.14;
         s.img.style.transform = `translateX(${stageX - 2}vw) scale(${sc.toFixed(3)})`;
       }
     }
 
+    // Copy timing. With a HOLD window every section reads the same way: the block
+    // rises over the tail of the flight so it is fully legible the moment the
+    // camera parks, stays up for the whole hold (the arrival station), then clears
+    // before the seam. Without HOLD the original mid-scene peak is kept, so the
+    // engine still behaves as documented for pages that do not opt in.
+    const rise0 = FLIGHT_END * 0.55;
     for (let i = 0; i < N; i++) {
       const seg = SECTIONS[i]._seg;
       const pr = clamp((y - seg.start) / (seg.end - seg.start), 0, 1);
       const before = y < seg.start, after = y > seg.end;
       let cop;
-      if (i === 0) cop = after ? 0 : smooth(1 - pr / 0.62);            // greets on landing
+      if (HOLD > 0) {
+        cop = smooth((pr - rise0) / Math.max(1e-4, FLIGHT_END - rise0));
+        // Every section but the last clears out across its exit tail, so the copy
+        // is gone before the dissolve into the next scene begins.
+        if (i < N - 1) cop *= smooth((1 - pr) / Math.max(1e-4, (1 - HOLD_END) * 0.85));
+        // `after` is deliberately not applied to the closing section: the document's
+        // maximum scroll rounds up to a whole pixel and can land a hair past that
+        // segment's end, which would blank the closing copy — the CTA — exactly at
+        // the bottom of the page.
+        if (before || (after && i < N - 1)) cop = 0;
+      } else if (i === 0) cop = after ? 0 : smooth(1 - pr / 0.62);     // greets on landing
       else if (i === N - 1) cop = before ? 0 : smooth(pr / 0.4);       // holds CTA at the end
       else cop = (before || after) ? 0 : smooth(1 - Math.abs(pr - 0.5) / 0.5);
       const c = copies[i];
       c.style.opacity = cop;
-      c.style.transform = reduce ? 'none' : `translateY(${(0.5 - pr) * 4}vh)`;
+      // Parallax is published as a custom property, never as an inline transform:
+      // the stylesheet owns the block's centring transform, and an inline one
+      // would replace it (dropping translateY(-50%)) and push tall blocks such as
+      // the closing CTA off the bottom of the viewport.
+      c.style.setProperty('--sw-shift', reduce ? '0vh' : ((0.5 - pr) * 4).toFixed(3) + 'vh');
       c.style.pointerEvents = cop > 0.5 ? 'auto' : 'none';
+
+      const ic = intros[i];
+      if (ic) {
+        const icop = (before || after) ? 0 : smooth(1 - pr / Math.max(1e-4, rise0 * 0.72));
+        ic.style.opacity = icop;
+        ic.style.setProperty('--sw-shift', reduce ? '0vh' : (-pr * 5).toFixed(3) + 'vh');
+        ic.style.pointerEvents = icop > 0.5 ? 'auto' : 'none';
+      }
     }
 
     const cur = SEGMENTS[ci];
@@ -282,7 +493,11 @@ function mountScrollWorld(container, config) {
       if (!s.visible && Math.abs(s.cur - s.target) < 0.002) continue;
       s.cur += (s.target - s.cur) * (reduce ? 1 : 0.18);
       const dur = s.video.duration || 1;
-      const t = clamp(s.cur, 0, 0.999) * dur;
+      // Map this segment's 0..1 progress onto its slice of the clip, then stay a
+      // hair inside the tail: seeking exactly to duration lands past the last
+      // frame on some decoders and paints black.
+      const r = rangeOf(s);
+      const t = Math.min((r[0] + (r[1] - r[0]) * clamp(s.cur)) * dur, dur - 0.04);
       if (Math.abs(s.video.currentTime - t) > eps) { try { s.video.currentTime = t; } catch (e) {} }
     }
     requestAnimationFrame(raf);
@@ -308,7 +523,21 @@ function mountScrollWorld(container, config) {
 
   // Particles are a per-frame cost we can't afford alongside video scrubbing on a phone.
   seedParticles(particles, reduce || coarse);
-  window.addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(read); } }, { passive: true });
+  window.addEventListener('scroll', () => {
+    if (!ticking) { ticking = true; requestAnimationFrame(read); }
+    // Anything that moves the page without going through gotoStation — a scrollbar
+    // drag, a find-in-page jump, a restored scroll position — is allowed, but once
+    // it stops we ease onto the nearest station so nobody is left parked mid-flight.
+    if (SNAP && !tween) {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        if (tween || !stations.length) return;
+        const y = window.scrollY || window.pageYOffset;
+        const s = stations[nearestStation(y)];
+        if (Math.abs(s - y) > 2) tweenTo(s, 420);
+      }, 160);
+    }
+  }, { passive: true });
   // Mobile browsers fire `resize` every time the URL bar slides in/out. Re-running
   // layout() there rebuilds the track height and yanks the scroll position, so on
   // touch we ignore height-only changes and only relayout when the width actually
@@ -321,12 +550,67 @@ function mountScrollWorld(container, config) {
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', layout);
   window.addEventListener('load', layout);
+
+  // ---- station navigation --------------------------------------------------
+  // Native scrolling is suppressed while SNAP is on and every move is a tween
+  // between stations, so a gesture always resolves into a completed flight and a
+  // settled frame instead of leaving the camera halfway down a corridor.
+  if (SNAP) {
+    window.addEventListener('wheel', e => {
+      e.preventDefault();
+      if (tween || Math.abs(e.deltaY) < 4) return;
+      const now = performance.now();
+      if (now < inputLock) return;
+      // A trackpad flick arrives as a long inertial tail of events; one gesture
+      // should be one station, so the lock outlasts the tail rather than the tick.
+      inputLock = now + 420;
+      gotoStation(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
+
+    let touchY = null;
+    window.addEventListener('touchstart', e => { touchY = e.touches[0].clientY; }, { passive: true });
+    window.addEventListener('touchmove', e => { e.preventDefault(); }, { passive: false });
+    window.addEventListener('touchend', e => {
+      if (touchY == null) return;
+      const dy = touchY - e.changedTouches[0].clientY;
+      touchY = null;
+      if (tween || Math.abs(dy) < 26) return;
+      const now = performance.now();
+      if (now < inputLock) return;
+      inputLock = now + 260;
+      gotoStation(dy > 0 ? 1 : -1);
+    }, { passive: true });
+
+    window.addEventListener('keydown', e => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return;
+      const k = e.key;
+      if (k === 'ArrowDown' || k === 'PageDown' || k === ' ' || k === 'Spacebar') { e.preventDefault(); gotoStation(1); }
+      else if (k === 'ArrowUp' || k === 'PageUp') { e.preventDefault(); gotoStation(-1); }
+      else if (k === 'Home') { e.preventDefault(); tweenTo(stations[0]); }
+      else if (k === 'End') { e.preventDefault(); tweenTo(stations[stations.length - 1]); }
+    });
+  }
+
   layout();
+  // Pull the whole film down at mount so the first scroll already has frames to
+  // scrub. The host page holds its loading screen until onReady fires.
+  if (PRELOAD) SEGMENTS.forEach(loadClip);
   requestAnimationFrame(raf);
 
   // ---- helpers ----
   function el(tag, cls) { const n = document.createElement(tag); if (cls) n.className = cls; return n; }
   function pad(n) { return String(n).padStart(2, '0'); }
+  // Shared body of a copy block, used for both a section's own copy and its
+  // optional `intro`. The section variant prepends its own NN / NN counter.
+  function copyHTML(c) {
+    return (c.eyebrow ? `<span class="sw-copy__eyebrow">${esc(c.eyebrow)}</span>` : '') +
+      (c.title ? `<h2 class="sw-copy__title">${esc(c.title)}</h2>` : '') +
+      (c.body ? `<p class="sw-copy__body">${esc(c.body)}</p>` : '') +
+      (c.tags && c.tags.length ? `<ul class="sw-copy__tags">${c.tags.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
+      (c.cta ? `<div class="sw-copy__cta">${ctaBtns(c.cta)}</div>` : '');
+  }
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function ctaBtns(cta) {
     let h = '';
@@ -386,7 +670,16 @@ function injectCSS() {
   .sw-scene__still{will-change:transform;} .sw-scene.has-clip .sw-scene__still{opacity:0;} .sw-scene__video{z-index:1;}
   .sw-copylayer{position:fixed;inset:0;z-index:20;pointer-events:none;}
   .sw-copylayer::before{content:"";position:absolute;inset:0;width:min(58vw,780px);background:linear-gradient(90deg,var(--sw-bg) 0%,color-mix(in srgb,var(--sw-bg) 82%,transparent) 34%,color-mix(in srgb,var(--sw-bg) 40%,transparent) 62%,transparent 100%);}
-  .sw-copy{position:absolute;left:clamp(18px,5vw,64px);top:50%;transform:translateY(-50%);width:min(42vw,460px);opacity:0;will-change:opacity,transform;}
+  /* Bounded box, not a centred point: top/bottom insets keep the block inside the
+     safe band between the topbar and the scroll hint, and the content is centred
+     within it. A tall block (the closing scene carries eyebrow + title + body +
+     tags + CTA) therefore grows into the available height instead of hanging off
+     the bottom of the viewport with its call to action cut off. The parallax
+     offset arrives as --sw-shift so this transform is never replaced inline. */
+  .sw-copy{position:absolute;left:clamp(18px,5vw,64px);top:clamp(140px,20vh,184px);bottom:clamp(72px,12vh,116px);
+    width:min(42vw,460px);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;
+    opacity:0;transform:translateY(var(--sw-shift,0vh));will-change:opacity,transform;}
+  .sw-copy--intro .sw-copy__title{font-size:clamp(2.3rem,5vw,3.9rem);}
   .sw-copy__num{font-family:ui-monospace,Menlo,monospace;font-size:.74rem;letter-spacing:.12em;color:var(--sw-ink-soft);}
   .sw-copy__eyebrow{display:block;margin-top:18px;font-family:var(--sw-font-display);font-weight:700;font-size:.8rem;letter-spacing:.16em;text-transform:uppercase;color:var(--sw-accent);}
   .sw-copy__title{font-family:var(--sw-font-display);font-weight:700;color:var(--sw-ink);font-size:clamp(2rem,4.4vw,3.5rem);line-height:1.03;margin:12px 0 0;letter-spacing:-.01em;text-shadow:0 2px 20px color-mix(in srgb,var(--sw-bg) 70%,transparent);}
@@ -415,7 +708,7 @@ function injectCSS() {
     .sw-copylayer::before{width:100%;height:60%;top:auto;bottom:0;background:linear-gradient(0deg,var(--sw-bg) 8%,color-mix(in srgb,var(--sw-bg) 70%,transparent) 46%,transparent 100%);}
     /* Anchor copy to the bottom, clear of the home indicator / collapsing URL bar.
        dvh + env() are progressive: browsers that lack them keep the vh fallback line. */
-    .sw-copy{left:clamp(18px,5vw,64px);right:clamp(18px,5vw,64px);top:auto;bottom:clamp(64px,14vh,120px);transform:none;width:auto;max-width:560px;}
+    .sw-copy{left:clamp(18px,5vw,64px);right:clamp(18px,5vw,64px);top:auto;bottom:clamp(64px,14vh,120px);width:auto;max-width:560px;justify-content:flex-end;}
     .sw-copy{bottom:calc(clamp(56px,12dvh,110px) + env(safe-area-inset-bottom));}
     .sw-copy__title{font-size:clamp(1.9rem,7.5vw,2.7rem);}
     .sw-copy__body{max-width:none;font-size:clamp(.98rem,3.6vw,1.1rem);} .sw-scene__video,.sw-scene__still{object-position:center 46%;}
@@ -432,6 +725,17 @@ function injectCSS() {
     .sw-route{padding:14px 6px;}
     .sw-route__dot{width:28px;height:28px;}
     .sw-btn{padding:15px 26px;}
+  }
+  /* Short viewports (laptops at 1280x720, phones in landscape) are where a tall
+     copy block runs out of room first. Compress the vertical rhythm rather than
+     letting the tail of the block — the CTA — fall outside the safe band. */
+  @media (max-height:900px){
+    .sw-copy__eyebrow{margin-top:10px;}
+    .sw-copy__title{font-size:clamp(1.7rem,3.4vw,2.5rem);margin-top:8px;}
+    .sw-copy--intro .sw-copy__title{font-size:clamp(1.9rem,4vw,3rem);}
+    .sw-copy__body{margin-top:12px;font-size:1rem;}
+    .sw-copy__tags{margin-top:14px;} .sw-copy__tags li{padding:5px 11px;}
+    .sw-copy__cta{margin-top:18px;} .sw-btn{padding:11px 20px;}
   }
   @media (prefers-reduced-motion:reduce){ .sw-hint i::after{animation:none;} .sw-pt{display:none;} }
   `;

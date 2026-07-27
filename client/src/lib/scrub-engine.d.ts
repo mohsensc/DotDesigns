@@ -8,7 +8,19 @@
 // "./scrub-engine.js"` type-resolves, and augments the global Window with the
 // function the engine installs.
 
-export interface ScrollWorldSection {
+/** One copy block: a section's own copy, or its optional `intro`. */
+export interface ScrollWorldCopy {
+  eyebrow?: string;
+  title?: string;
+  body?: string;
+  tags?: string[];
+  cta?: {
+    primary?: { label: string; href?: string };
+    secondary?: { label: string; href?: string };
+  };
+}
+
+export interface ScrollWorldSection extends ScrollWorldCopy {
   id: string;
   label?: string;
   still?: string;
@@ -18,14 +30,26 @@ export interface ScrollWorldSection {
   accent?: string;
   scroll?: number;
   linger?: number;
-  eyebrow?: string;
-  title?: string;
-  body?: string;
-  tags?: string[];
-  cta?: {
-    primary?: { label: string; href?: string };
-    secondary?: { label: string; href?: string };
-  };
+  /**
+   * Slice of `clip` this section plays, as [start, end] fractions of the clip's
+   * duration. Lets one continuous take be split across several sections without
+   * re-encoding it; the blob is fetched once and shared. Defaults to [0, 1].
+   */
+  range?: [number, number];
+  /**
+   * The frame this scene comes to rest on, as a 0..1 position within its own
+   * `range`. Defaults to 1 (the end). Set it below 1 when the clip's final beat
+   * is the camera already gliding toward the next room: the flight then settles
+   * here, holds while the copy is read, and only releases the remaining tail as
+   * the visitor scrolls away.
+   */
+  settle?: number;
+  /**
+   * Second copy block for this section, shown while the scene is still on its
+   * opening frame and retired as the flight starts. Lets the landing scene greet
+   * before the section's own copy lands with the camera.
+   */
+  intro?: ScrollWorldCopy;
 }
 
 export interface ScrollWorldConfig {
@@ -40,6 +64,24 @@ export interface ScrollWorldConfig {
   sections: ScrollWorldSection[];
   connectors?: (string | null)[];
   connectorsMobile?: (string | null)[];
+  /**
+   * Trailing fraction (0..0.8) of each scene's scroll range where the clip parks
+   * on its arrival frame instead of scrubbing. Creates the second resting frame
+   * per scene and the window in which that scene's copy is held up.
+   */
+  hold?: number;
+  /**
+   * Station-to-station navigation. The only positions a visitor can rest at are
+   * each scene's opening and arrival frames; everything between is crossed by an
+   * animated tween, so a flight or a dissolve always completes.
+   */
+  snap?: boolean;
+  /** Fetch every clip at mount instead of lazily near the viewport. */
+  preload?: boolean | "all";
+  /** Clips settled (decodable or failed) out of the total, for a loading gate. */
+  onProgress?: (settled: number, total: number) => void;
+  /** Fires once every clip has settled — or immediately if there is nothing to load. */
+  onReady?: () => void;
 }
 
 declare global {

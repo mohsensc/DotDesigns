@@ -15,6 +15,17 @@
       href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Jost:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&display=swap"
       rel="stylesheet"
     />
+    <!-- First paint happens before the bundle or any stylesheet has parsed. Without
+         this the browser shows its default white page for that gap, which on a
+         near-black site reads as a flash of broken layout ahead of the loading
+         screen. Charcoal here matches --sw-bg in World.css. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #141210;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
