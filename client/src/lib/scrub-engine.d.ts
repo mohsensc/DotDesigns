@@ -78,6 +78,17 @@ export interface ScrollWorldConfig {
   snap?: boolean;
   /** Fetch every clip at mount instead of lazily near the viewport. */
   preload?: boolean | "all";
+  /**
+   * Multiplier on how long a step between stations takes. 1 is the default pace;
+   * 3 runs the transitions at a third of that speed. Requires `snap`.
+   */
+  stepScale?: number;
+  /**
+   * The right-hand route rail (a vertical track with a dot per scene). Defaults
+   * to true; set false to drop it — it reads as a scrollbar and duplicates the
+   * topbar nav.
+   */
+  route?: boolean;
   /** Clips settled (decodable or failed) out of the total, for a loading gate. */
   onProgress?: (settled: number, total: number) => void;
   /** Fires once every clip has settled — or immediately if there is nothing to load. */

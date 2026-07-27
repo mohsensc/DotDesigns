@@ -93,6 +93,12 @@ function mountScrollWorld(container, config) {
   // film is decodable. Without it the first scenes scrub as stills until their
   // blobs land, which reads as "the animation is missing".
   const PRELOAD = config.preload === true || config.preload === 'all';
+  // The right-hand route rail: a vertical track with a dot per scene. Reads as a
+  // scrollbar, and duplicates the topbar nav. Opt out with route: false.
+  const SHOW_ROUTE = config.route !== false;
+  // Multiplier on how long a step between stations takes. 1 = the default pace;
+  // 3 runs the transitions at a third of that speed.
+  const STEP_SCALE = config.stepScale > 0 ? config.stepScale : 1;
   const N = SECTIONS.length;
   if (!N) return;
 
@@ -150,7 +156,8 @@ function mountScrollWorld(container, config) {
   hint.appendChild(el('i'));
   const track = el('div', 'sw-track');
 
-  [sky, scrollbar, topbar, stage, copylayer, route, hint, track].forEach(n => container.appendChild(n));
+  [sky, scrollbar, topbar, stage, copylayer, hint, track].forEach(n => container.appendChild(n));
+  if (SHOW_ROUTE) container.insertBefore(route, hint);
 
   // segment scenes
   SEGMENTS.forEach(s => {
@@ -183,9 +190,11 @@ function mountScrollWorld(container, config) {
     }
     intros.push(ic);
 
-    const dot = el('button', 'sw-route__dot'); dot.style.setProperty('--sw-accent', s.accent || '');
-    dot.innerHTML = `<span class="sw-route__label">${esc(s.label || '')}</span><i></i>`;
-    dot.addEventListener('click', () => jumpTo(i)); route.appendChild(dot); dots.push(dot);
+    if (SHOW_ROUTE) {
+      const dot = el('button', 'sw-route__dot'); dot.style.setProperty('--sw-accent', s.accent || '');
+      dot.innerHTML = `<span class="sw-route__label">${esc(s.label || '')}</span><i></i>`;
+      dot.addEventListener('click', () => jumpTo(i)); route.appendChild(dot); dots.push(dot);
+    }
 
     if (config.nav !== false) {
       const b = el('button', 'sw-nav__item'); b.textContent = s.label || '';
@@ -289,7 +298,7 @@ function mountScrollWorld(container, config) {
     if (Math.abs(dist) < 1) return;
     if (reduce) { window.scrollTo(0, y); return; }
     const t0 = performance.now();
-    const D = dur || Math.min(1150, Math.max(560, (Math.abs(dist) / vh) * 700));
+    const D = dur || Math.min(1150, Math.max(560, (Math.abs(dist) / vh) * 700)) * STEP_SCALE;
     const token = {};
     tween = token;
     const step = now => {

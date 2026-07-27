@@ -7,6 +7,21 @@
    mixes so they read correctly on a near-black ground.
    ========================================================================== */
 
+/* Snap navigation owns the scroll position: every move is an animated step
+   between stations. A native scrollbar is therefore both meaningless here and the
+   one remaining way to drag the camera through a flight by hand, so hide it. The
+   page still scrolls — programmatically, and via wheel/touch/keys. */
+html {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 /* Theme tokens. Set on :root (so html/body background picks up --sw-bg) and on
    .sw-root (the engine container) so an unlayered rule beats the layered
    .sw-root defaults on the container element itself. */
