@@ -43,13 +43,15 @@ const DECK: ScrollWorldConfig = {
   // always crossed by an animated step, never dragged through by hand.
   hold: 0.26,
   snap: true,
-  // A third of the engine's default step pace. These are long camera moves through
-  // a room, not UI transitions; at the default speed the flight is over before the
-  // eye has followed it.
-  stepScale: 3,
-  // No right-hand route rail: it reads as a scrollbar and the topbar nav already
-  // covers jumping between stops.
+  // Scroll itself is native and one to one; stepScale only paces the discrete
+  // moves — an arrow key, a nav click — where a slower, cinematic glide reads as
+  // deliberate rather than sluggish.
+  stepScale: 2,
+  // Nothing that reads as a scrollbar: neither the right-hand route rail (the
+  // topbar nav already covers jumping between stops) nor the hairline progress
+  // bar across the top.
   route: false,
+  progress: false,
   // The whole film is fetched before the page is revealed (see the gate below):
   // no visitor should meet this site with the animation still missing.
   preload: true,
@@ -86,19 +88,15 @@ const DECK: ScrollWorldConfig = {
       clip: "/world/vid/gallery.mp4",
       accent: "#F2EDE4",
       // gallery.mp4 spends its last ~3s gliding off toward the gold wave wall,
-      // which is the NEXT scene's subject. Rest on the hall itself instead, at
-      // ~6.77s: the alabaster figure with the black butterflies stands full in
-      // frame against the crossed bark reliefs, and the gold wall is still just
-      // unfocused background. By 7.5s she has left frame and the wall has taken
-      // over the shot.
+      // which is the NEXT scene's subject, so this stop rests well short of the
+      // clip's end: 5.80s, on the plaster monolith with its cascade of black
+      // cords, the room still opening up behind it.
       //
-      // 6.77 rather than 6.6 because a paused, scrubbed video paints the keyframe
-      // at or before the requested time, and these clips carry one every 0.333s.
-      // 6.6 requested lands on the 6.334 keyframe, which is still the plaster
-      // monolith and no figure at all. 6.77 sits between the 6.667 keyframe and
-      // the next, so the figure is in frame whether the browser resolves the seek
-      // exactly or falls back to the keyframe.
-      settle: 0.68,
+      // A paused, scrubbed video paints the keyframe at or before the requested
+      // time and these clips carry one every 0.333s, so the picture here steps at
+      // 5.667 and holds until 6.0. 5.80 sits comfortably inside that step rather
+      // than on its edge.
+      settle: 0.5824,
       eyebrow: "THE WORK",
       title: "More Than a Wall",
       body: "Monumental relief panels, each shaped by hand and finished for the space it lives in.",

@@ -96,6 +96,9 @@ function mountScrollWorld(container, config) {
   // The right-hand route rail: a vertical track with a dot per scene. Reads as a
   // scrollbar, and duplicates the topbar nav. Opt out with route: false.
   const SHOW_ROUTE = config.route !== false;
+  // The hairline progress bar across the top of the viewport. Opt out with
+  // progress: false.
+  const SHOW_PROGRESS = config.progress !== false;
   // Multiplier on how long a step between stations takes. 1 = the default pace;
   // 3 runs the transitions at a third of that speed.
   const STEP_SCALE = config.stepScale > 0 ? config.stepScale : 1;
@@ -156,7 +159,8 @@ function mountScrollWorld(container, config) {
   hint.appendChild(el('i'));
   const track = el('div', 'sw-track');
 
-  [sky, scrollbar, topbar, stage, copylayer, hint, track].forEach(n => container.appendChild(n));
+  [sky, topbar, stage, copylayer, hint, track].forEach(n => container.appendChild(n));
+  if (SHOW_PROGRESS) container.insertBefore(scrollbar, topbar);
   if (SHOW_ROUTE) container.insertBefore(route, hint);
 
   // segment scenes
@@ -534,17 +538,23 @@ function mountScrollWorld(container, config) {
   seedParticles(particles, reduce || coarse);
   window.addEventListener('scroll', () => {
     if (!ticking) { ticking = true; requestAnimationFrame(read); }
-    // Anything that moves the page without going through gotoStation — a scrollbar
-    // drag, a find-in-page jump, a restored scroll position — is allowed, but once
-    // it stops we ease onto the nearest station so nobody is left parked mid-flight.
+    // The magnet. Scrolling itself is native and free — the wheel and the finger
+    // drive the camera one to one — and only when it stops does the page ease onto
+    // the nearest station, so nobody is left parked mid-flight or mid-dissolve.
+    // A trackpad's momentum tail keeps firing scroll events and so keeps resetting
+    // this timer, which is what makes the settle wait for the gesture to be
+    // genuinely over. Short and distance-scaled: this lands the visitor's own
+    // gesture rather than taking them for a ride, and anything slow enough to
+    // notice reads as lag.
     if (SNAP && !tween) {
       clearTimeout(settleTimer);
       settleTimer = setTimeout(() => {
         if (tween || !stations.length) return;
         const y = window.scrollY || window.pageYOffset;
         const s = stations[nearestStation(y)];
-        if (Math.abs(s - y) > 2) tweenTo(s, 420);
-      }, 160);
+        const d = Math.abs(s - y);
+        if (d > 2) tweenTo(s, Math.min(760, Math.max(320, (d / vh) * 900)));
+      }, 140);
     }
   }, { passive: true });
   // Mobile browsers fire `resize` every time the URL bar slides in/out. Re-running
@@ -561,35 +571,15 @@ function mountScrollWorld(container, config) {
   window.addEventListener('load', layout);
 
   // ---- station navigation --------------------------------------------------
-  // Native scrolling is suppressed while SNAP is on and every move is a tween
-  // between stations, so a gesture always resolves into a completed flight and a
-  // settled frame instead of leaving the camera halfway down a corridor.
+  // Scrolling stays native: the wheel and the finger drive the camera directly,
+  // one to one, so the flight responds while the gesture is happening. Stations
+  // are magnetic rather than mandatory — when the gesture (and any momentum)
+  // stops, the page eases onto the nearest one, so nobody is left parked
+  // mid-flight or mid-dissolve. See the scroll listener for that settle.
+  //
+  // Keys are the exception: an arrow or a page key is a discrete request, so it
+  // steps station to station.
   if (SNAP) {
-    window.addEventListener('wheel', e => {
-      e.preventDefault();
-      if (tween || Math.abs(e.deltaY) < 4) return;
-      const now = performance.now();
-      if (now < inputLock) return;
-      // A trackpad flick arrives as a long inertial tail of events; one gesture
-      // should be one station, so the lock outlasts the tail rather than the tick.
-      inputLock = now + 420;
-      gotoStation(e.deltaY > 0 ? 1 : -1);
-    }, { passive: false });
-
-    let touchY = null;
-    window.addEventListener('touchstart', e => { touchY = e.touches[0].clientY; }, { passive: true });
-    window.addEventListener('touchmove', e => { e.preventDefault(); }, { passive: false });
-    window.addEventListener('touchend', e => {
-      if (touchY == null) return;
-      const dy = touchY - e.changedTouches[0].clientY;
-      touchY = null;
-      if (tween || Math.abs(dy) < 26) return;
-      const now = performance.now();
-      if (now < inputLock) return;
-      inputLock = now + 260;
-      gotoStation(dy > 0 ? 1 : -1);
-    }, { passive: true });
-
     window.addEventListener('keydown', e => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target;

@@ -71,9 +71,9 @@ export interface ScrollWorldConfig {
    */
   hold?: number;
   /**
-   * Station-to-station navigation. The only positions a visitor can rest at are
-   * each scene's opening and arrival frames; everything between is crossed by an
-   * animated tween, so a flight or a dissolve always completes.
+   * Magnetic stations. Scrolling stays native and one to one; when the gesture
+   * and its momentum stop, the page eases onto the nearest station so nobody is
+   * left parked mid-flight or mid-dissolve. Keys step station to station.
    */
   snap?: boolean;
   /** Fetch every clip at mount instead of lazily near the viewport. */
@@ -89,6 +89,8 @@ export interface ScrollWorldConfig {
    * topbar nav.
    */
   route?: boolean;
+  /** The hairline progress bar across the top of the viewport. Defaults to true. */
+  progress?: boolean;
   /** Clips settled (decodable or failed) out of the total, for a loading gate. */
   onProgress?: (settled: number, total: number) => void;
   /** Fires once every clip has settled — or immediately if there is nothing to load. */
