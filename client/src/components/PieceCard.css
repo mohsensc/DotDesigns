@@ -1,0 +1,92 @@
+/* Tokens are set on .shop (see Shop.css) and inherit down the DOM tree, so
+   this file never needs to redefine them — it's only ever mounted inside
+   the shop grid. */
+
+.piece-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.piece-card__media {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--sh-ink) 6%, var(--sh-bg));
+  border: 1px solid color-mix(in srgb, var(--sh-accent) 16%, transparent);
+}
+
+.piece-card__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s ease, opacity 0.3s ease;
+}
+
+.piece-card:hover .piece-card__img {
+  transform: scale(1.02);
+}
+
+.piece-card--sold .piece-card__img {
+  opacity: 0.45;
+}
+
+.piece-card__placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--sh-accent) 8%, var(--sh-bg)),
+    var(--sh-bg)
+  );
+}
+
+.piece-card__status {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  font-family: var(--sh-font-body);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sh-ink);
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--sh-ink) 40%, transparent);
+  background: color-mix(in srgb, var(--sh-bg) 70%, transparent);
+}
+
+.piece-card__body {
+  padding: 16px 2px 0;
+}
+
+.piece-card__title {
+  margin: 0;
+  font-family: var(--sh-font-display);
+  font-weight: 500;
+  font-size: 1.08rem;
+  color: var(--sh-ink);
+  letter-spacing: 0.01em;
+}
+
+.piece-card__meta {
+  margin: 6px 0 0;
+  font-family: var(--sh-font-body);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
+}
+
+.piece-card__price {
+  margin: 10px 0 0;
+  font-family: var(--sh-font-body);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  color: var(--sh-accent);
+}
+
+.piece-card:focus-visible {
+  outline: 1px solid var(--sh-accent);
+  outline-offset: 4px;
+}
