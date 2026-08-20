@@ -1,14 +1,17 @@
 // ---------------------------------------------------------------------------
 // The catalog contract.
 //
-// One shape, two consumers: the public shop (/shop) reads it, the studio build
-// writes it. Both import from here — if you change a type, change it once.
+// One shape, three consumers: the public shop reads it, the studio writes it,
+// and scripts/build.mjs reads the demo JSON at build time to prerender per-piece
+// HTML. That last one is why the demo pieces live in catalog.demo.json rather
+// than in this file — Node can't import TypeScript, and two copies would drift.
 //
 // Media is deliberately indirect. A MediaRef either points at a URL that ships
 // with the build (the demo pieces) or at a blob the studio stashed in IndexedDB
-// (anything Hajar uploads). The shop only ever needs `resolveMedia` to tell the
-// difference, so swapping IndexedDB for real object storage later is one file.
+// (anything Hajar uploads). Only `resolveMedia` needs to know the difference.
 // ---------------------------------------------------------------------------
+
+import demo from "./catalog.demo.json";
 
 export type MediaKind = "image" | "video";
 
@@ -19,7 +22,12 @@ export type MediaRef = {
   src?: string;
   /** IndexedDB key. Set for uploads, absent for demo pieces. */
   blobKey?: string;
-  alt?: string;
+  /**
+   * What the photo shows, in Hajar's words. Printed under the image AND used as
+   * the alt attribute — she writes one visible caption and never sees the word
+   * "alt". Use altOf() rather than reading this directly.
+   */
+  caption?: string;
 };
 
 /** What the piece is. Drives filtering and the default price band. */
@@ -27,6 +35,21 @@ export type PieceCategory = "wall-relief" | "sculpture" | "pottery" | "commissio
 
 /** Availability. `sold` still shows — sold work is the strongest proof there is. */
 export type PieceStatus = "available" | "sold" | "reserved" | "draft";
+
+export type SizeUnit = "cm" | "in" | "m";
+
+/**
+ * Real measurements, kept as numbers so the scale drawing can be to proportion.
+ * Optional throughout: an on-site commission genuinely has no fixed size, and
+ * `dimensions` carries the words for that case.
+ */
+export type Size = {
+  unit: SizeUnit;
+  height?: number;
+  length?: number;
+  /** Only meaningful for work in the round. Absent on flat wall pieces. */
+  depth?: number;
+};
 
 export type Piece = {
   id: string;
@@ -42,12 +65,17 @@ export type Piece = {
   blurb: string;
   /** The long description on the piece page. Plain text, newlines allowed. */
   description: string;
-  /** Free text: "48 × 36 in", "H 14 in". */
+  /** Numbers, when there are any. Drives ScaleFigure and the printed size. */
+  size?: Size;
+  /**
+   * Free text, for the pieces that have no fixed measurements ("Sized to the
+   * wall"). When `size` is set it wins, so nothing has to be typed twice.
+   */
   dimensions?: string;
   /** "Plaster, gold leaf, pigment" */
   materials?: string;
   media: MediaRef[];
-  /** Which media id is the cover. Falls back to media[0]. */
+  /** Which media id is the cover. Falls back to the first image. */
   coverId?: string;
   /** Ascending. Lower sorts first in the shop grid. */
   order: number;
@@ -63,8 +91,8 @@ export type Catalog = {
 };
 
 // ---------------------------------------------------------------------------
-// Price bands. Used by the Special Request form and as studio presets, so the
-// two never drift apart. Real range: $500 small pottery to $10k on-site wall.
+// Price bands. Used by the Special Request form and as studio hints, so the two
+// never drift apart. Real range: $500 small pottery to $10k on-site wall.
 // ---------------------------------------------------------------------------
 
 export type PriceBand = {
@@ -97,8 +125,17 @@ export const STATUS_LABELS: Record<PieceStatus, string> = {
   draft: "Draft",
 };
 
+export const UNIT_LABELS: Record<SizeUnit, string> = {
+  cm: "centimetres",
+  in: "inches",
+  m: "metres",
+};
+
+/** Short form, for printing after a number. */
+export const UNIT_SUFFIX: Record<SizeUnit, string> = { cm: "cm", in: "in", m: "m" };
+
 // ---------------------------------------------------------------------------
-// Helpers — shared so the shop and the studio format money and covers the same.
+// Helpers — shared so the shop, the studio and the build script all agree.
 // ---------------------------------------------------------------------------
 
 export function formatPrice(price: number | null): string {
@@ -118,6 +155,48 @@ export function coverOf(piece: Piece): MediaRef | undefined {
   return piece.media.find(m => m.kind === "image") || piece.media[0];
 }
 
+/** Alt text always resolves to something: her caption, else the piece title. */
+export function altOf(media: MediaRef | undefined, piece: Piece): string {
+  return media?.caption?.trim() || piece.title;
+}
+
+const TO_CM: Record<SizeUnit, number> = { cm: 1, in: 2.54, m: 100 };
+
+/** Normalised to centimetres so tiers and proportions can be compared. */
+export function toCm(value: number, unit: SizeUnit): number {
+  return value * TO_CM[unit];
+}
+
+/** The piece's largest real measurement in cm, or null if it has no numbers. */
+export function largestDimensionCm(size: Size | undefined): number | null {
+  if (!size) return null;
+  const values = [size.height, size.length, size.depth].filter(
+    (n): n is number => typeof n === "number" && n > 0,
+  );
+  if (!values.length) return null;
+  return toCm(Math.max(...values), size.unit);
+}
+
+/**
+ * The size as words. Generated from `size` when it exists so the studio never
+ * asks for the same measurements twice, otherwise whatever free text was saved.
+ */
+export function formatSize(piece: Piece): string | null {
+  const s = piece.size;
+  if (!s) return piece.dimensions || null;
+  const parts: string[] = [];
+  if (s.height) parts.push(`H ${trim(s.height)}`);
+  if (s.length) parts.push(`W ${trim(s.length)}`);
+  if (s.depth) parts.push(`D ${trim(s.depth)}`);
+  if (!parts.length) return piece.dimensions || null;
+  return `${parts.join(" × ")} ${UNIT_SUFFIX[s.unit]}`;
+}
+
+function trim(n: number): string {
+  // 11 not 11.0, but 11.5 keeps its half.
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
+}
+
 /** Public shop hides drafts. The studio shows everything. */
 export function publicPieces(catalog: Catalog): Piece[] {
   return catalog.pieces
@@ -126,127 +205,10 @@ export function publicPieces(catalog: Catalog): Piece[] {
 }
 
 // ---------------------------------------------------------------------------
-// Demo catalog.
-//
-// Lightweight on purpose: every cover reuses a still that already ships for the
-// scroll film (client/public/world/), so the shop adds no image weight to the
-// build at all. Real photography replaces these through the studio.
+// Demo catalog. Lightweight on purpose: the covers that exist reuse stills that
+// already ship for the scroll film, so the shop adds no image weight. The two
+// pottery pieces carry no photo at all — every still in the build is a wide
+// gallery interior, which looks wrong on a $500 bowl.
 // ---------------------------------------------------------------------------
 
-const img = (id: string, src: string, alt: string): MediaRef => ({ id, kind: "image", src, alt });
-
-export const DEMO_CATALOG: Catalog = {
-  version: 1,
-  updatedAt: "2026-08-20T00:00:00.000Z",
-  pieces: [
-    {
-      id: "p-wave-wall",
-      slug: "the-wave-wall",
-      title: "The Wave Wall",
-      year: 2025,
-      category: "commission",
-      status: "available",
-      price: 10000,
-      blurb: "A rippling gold relief that changes as you move.",
-      description:
-        "Installed on site over four days, the wave wall is built up fold by fold in plaster and finished in genuine gold leaf. The relief is cut so that the light travels the surface with the viewer — the room is never quite the same twice.\n\nScale, fold depth, and leaf tone are set with the architect. Quoted per wall.",
-      dimensions: "Sized to the wall",
-      materials: "Plaster, 23k gold leaf",
-      media: [img("m-wave-1", "/world/atelier.webp", "The gold wave wall, raking light along the folds")],
-      coverId: "m-wave-1",
-      order: 1,
-      createdAt: "2026-01-14T00:00:00.000Z",
-    },
-    {
-      id: "p-monolith",
-      slug: "monolith-with-cords",
-      title: "Monolith with Cords",
-      year: 2025,
-      category: "wall-relief",
-      status: "available",
-      price: 7400,
-      blurb: "A plaster monolith with a cascade of black cords.",
-      description:
-        "A single plaster slab, hand-worked while green so the surface keeps the tool. A cascade of waxed black cord falls the full height, weighted at the ends, and moves a little when the room does.\n\nHangs on a French cleat, included.",
-      dimensions: "84 × 40 in",
-      materials: "Plaster, waxed cord, steel",
-      media: [img("m-mono-1", "/world/gallery.webp", "Plaster monolith with black cords in the hall")],
-      coverId: "m-mono-1",
-      order: 2,
-      createdAt: "2026-02-02T00:00:00.000Z",
-    },
-    {
-      id: "p-sculpted-light",
-      slug: "sculpted-by-light",
-      title: "Sculpted by Light",
-      year: 2024,
-      category: "wall-relief",
-      status: "sold",
-      price: 6200,
-      blurb: "High relief cut for a single raking light source.",
-      description:
-        "Built for one wall and one lamp. The relief is shallow at the edges and deepest at the centre, so at the right angle the whole panel reads as a single fold of cloth.\n\nSold — a close variation can be commissioned.",
-      dimensions: "60 × 48 in",
-      materials: "Plaster, pigment",
-      media: [img("m-light-1", "/world/arrival.webp", "Relief panel lit from the side")],
-      coverId: "m-light-1",
-      order: 3,
-      createdAt: "2025-11-20T00:00:00.000Z",
-    },
-    {
-      id: "p-studio-vessel",
-      slug: "studio-vessel-no-4",
-      title: "Studio Vessel No. 4",
-      year: 2026,
-      category: "pottery",
-      status: "available",
-      price: 640,
-      blurb: "Hand-built vessel, matte bone glaze.",
-      description:
-        "Coil-built and scraped back, then glazed in a matte bone white that pools slightly at the foot. Watertight. One of a short run, each a little different.",
-      dimensions: "H 11 in, Ø 7 in",
-      materials: "Stoneware, matte glaze",
-      // No photo: every still that ships with the build is a wide gallery
-      // interior, and hanging one on a $640 pot looks worse than an empty frame.
-      // The placeholder is honest until real photography goes in through the studio.
-      media: [],
-      order: 4,
-      createdAt: "2026-03-08T00:00:00.000Z",
-    },
-    {
-      id: "p-small-bowl",
-      slug: "ash-bowl",
-      title: "Ash Bowl",
-      year: 2026,
-      category: "pottery",
-      status: "available",
-      price: 500,
-      blurb: "Small wheel-thrown bowl in a grey ash glaze.",
-      description: "Wheel-thrown, trimmed thin, finished in a grey ash glaze that breaks warm over the rim. Dishwasher safe, though it would rather you didn't.",
-      dimensions: "H 4 in, Ø 9 in",
-      materials: "Stoneware, ash glaze",
-      media: [], // see Studio Vessel above
-
-      order: 5,
-      createdAt: "2026-03-30T00:00:00.000Z",
-    },
-    {
-      id: "p-figure-drapery",
-      slug: "figure-in-drapery",
-      title: "Figure in Drapery",
-      year: 2025,
-      category: "sculpture",
-      status: "reserved",
-      price: 4800,
-      blurb: "A sculpted figure caught mid-motion, backlit.",
-      description:
-        "A half-scale figure worked in plaster over armature, the drapery pulled so it reads as movement from every side. Meant to be backlit — the shadow it throws is half the piece.\n\nCurrently reserved. Ask to be told if it frees up.",
-      dimensions: "H 38 in",
-      materials: "Plaster, steel armature",
-      media: [img("m-fig-1", "/world/gallery.webp", "Sculpted figure in drapery, backlit")],
-      coverId: "m-fig-1",
-      order: 6,
-      createdAt: "2025-09-12T00:00:00.000Z",
-    },
-  ],
-};
+export const DEMO_CATALOG = demo as Catalog;
