@@ -9,24 +9,38 @@ order, sold/in-stock). It's not linked from the public site.
 Create a second Vercel project pointing at this repo, then set:
 
 - `DEPLOY_TARGET=studio` — picks the studio build instead of the public site.
-  `scripts/build.mjs` reads this at build time; the outputs land in the same
-  `dist/` either way, since `vercel.json` only knows one output directory.
-- `PASSWORD=<your value>` — the one thing gating the studio. There's no
-  default and no fallback: if it's unset, `api/studio-auth.ts` fails closed
-  and refuses to authenticate anyone.
+  `scripts/build.mjs` reads this at build time; both land in `dist/`.
+- `PASSWORD=<your value>` — the one thing gating the studio. No default, no
+  fallback: unset, and `api/studio-auth.ts` fails closed.
 
-Deploy the project, then note its URL yourself — it isn't written down
-anywhere in this repo on purpose. Give that URL and the password to Hajar.
+Deploy, then note the URL yourself — it isn't written down in this repo on
+purpose. Give the URL and password to Hajar. The public project is unchanged.
 
-The public project stays as-is: no env var, no change.
+Auth: one password, compared server-side. Success sets an HttpOnly cookie
+holding an HMAC token derived from `PASSWORD`, not the password itself.
 
-## How auth works
+## Built for her phone
 
-One password, compared in constant time server-side. On success the function
-sets an HttpOnly cookie holding an HMAC token derived from `PASSWORD`, not
-the password itself — the client never sees it and can't forge the cookie
-without the server's secret. The studio shows a full-screen lock screen until
-that cookie checks out.
+Hajar runs this from her phone. The list is stacked cards, not wide rows —
+every action is its own full-width button, Delete sits apart from the rest,
+and a save/cancel bar stays pinned to the bottom of the form. Desktop just
+centers the same column.
+
+## Size, captions, photos
+
+Size is real numbers (height, length, optional depth) in cm/in/m, with a
+live drawing next to a hand or person so she can check it looks right.
+Pieces with no fixed size can describe it in words instead. Each photo gets
+a caption ("what's in this photo?") — that's what the live site uses for
+accessibility, she never sees the word "alt". Photos reorder with move
+up/down buttons, no dragging. "Duplicate this piece" copies everything
+except photos, so two pieces never share a stored photo.
+
+Uploads get resized (2000px long edge, EXIF rotation respected) and
+re-encoded as JPEG before they're stored, since a dozen raw phone photos can
+blow the browser's storage quota. The studio shows the saving per file, never
+upscales a small image, and a failed save shows a real message. Videos pass
+through as-is, with a warning above ~50MB.
 
 ## The catalog lives in her browser
 

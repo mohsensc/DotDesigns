@@ -5,7 +5,7 @@ import ConfirmDialog from "./ConfirmDialog.tsx";
 import LockScreen from "./LockScreen.tsx";
 import PieceForm from "./PieceForm.tsx";
 import PieceList from "./PieceList.tsx";
-import { newId } from "./util.ts";
+import { newId, slugify } from "./util.ts";
 
 type View = { name: "list" } | { name: "edit"; pieceId: string | null };
 
@@ -93,6 +93,37 @@ export default function Studio() {
       const nextStatus: PieceStatus = p.status === "available" ? "sold" : "available";
       return { ...p, status: nextStatus };
     });
+    await persist({ ...current, pieces: nextPieces });
+  }
+
+  async function handleDuplicate(id: string) {
+    const original = current.pieces.find(p => p.id === id);
+    if (!original) return;
+
+    const title = `${original.title || "Untitled piece"} (copy)`;
+    const taken = new Set(current.pieces.map(p => p.slug));
+    let slug = slugify(title);
+    for (let n = 2; taken.has(slug); n++) slug = `${slugify(title)}-${n}`;
+
+    const copy: Piece = {
+      ...original,
+      id: newId("p"),
+      slug,
+      title,
+      status: "draft",
+      // Photos deliberately not copied: two pieces must never share a
+      // blobKey, since deleting one would silently blank the other.
+      media: [],
+      coverId: undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Re-sequence every piece's order so the copy lands right after the
+    // original, regardless of whether existing order values are contiguous.
+    const sorted = [...current.pieces].sort((a, b) => a.order - b.order);
+    const insertAt = sorted.findIndex(p => p.id === id) + 1;
+    sorted.splice(insertAt, 0, copy);
+    const nextPieces = sorted.map((p, i) => ({ ...p, order: i }));
     await persist({ ...current, pieces: nextPieces });
   }
 
@@ -194,6 +225,7 @@ export default function Studio() {
           onDelete={id => void handleDelete(id)}
           onMove={(id, dir) => void handleMove(id, dir)}
           onToggleSold={id => void handleToggleSold(id)}
+          onDuplicate={id => void handleDuplicate(id)}
         />
       )}
 

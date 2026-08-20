@@ -106,17 +106,23 @@ button, input, select, textarea {
 /* ---- layout ---- */
 
 .studio {
-  max-width: 900px;
+  max-width: 640px;
   margin: 0 auto;
-  padding: 24px 20px 80px;
+  padding: 20px 16px 80px;
+}
+
+/* Desktop gets to breathe a bit more, but the design target stays the phone. */
+@media (min-width: 720px) {
+  .studio {
+    max-width: 720px;
+    padding: 32px 24px 96px;
+  }
 }
 
 .studio-header {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 16px;
 }
 
@@ -127,8 +133,23 @@ button, input, select, textarea {
 
 .studio-header-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
+}
+
+.studio-header-actions .btn {
+  width: 100%;
+}
+
+@media (min-width: 560px) {
+  .studio-header-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .studio-header-actions .btn {
+    width: auto;
+  }
 }
 
 .studio-honesty-banner {
@@ -159,7 +180,8 @@ button, input, select, textarea {
   font-weight: 500;
   cursor: pointer;
   min-height: 44px;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
 }
 
 .btn:disabled {
@@ -184,10 +206,16 @@ button, input, select, textarea {
   color: var(--studio-danger);
 }
 
+/* Still 44px minimum — this is a smaller-looking button, not a smaller
+   tap target. Used for photo actions where several sit close together. */
 .btn-small {
-  padding: 8px 12px;
-  min-height: 36px;
+  padding: 10px 12px;
+  min-height: 44px;
   font-size: 14px;
+}
+
+.btn-block {
+  width: 100%;
 }
 
 .file-btn {
@@ -206,11 +234,25 @@ button, input, select, textarea {
 
 .piece-list-header {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 16px;
+}
+
+.piece-list-header .btn {
+  width: 100%;
+}
+
+@media (min-width: 560px) {
+  .piece-list-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .piece-list-header .btn {
+    width: auto;
+  }
 }
 
 .empty-note {
@@ -220,18 +262,26 @@ button, input, select, textarea {
 .piece-rows {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
-.piece-row {
+/* One card per piece, everything stacked. Five actions side by side used to
+   live in one row here — unusable at phone width, so each gets its own full
+   width tap target instead, grouped by how risky the action is. */
+.piece-card {
   background: var(--studio-surface);
   border: 1px solid var(--studio-line);
   border-radius: var(--studio-radius);
   padding: 14px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 14px;
-  flex-wrap: wrap;
+}
+
+.piece-card-top {
+  display: flex;
+  gap: 14px;
+  align-items: center;
 }
 
 .piece-row-thumb {
@@ -253,29 +303,45 @@ button, input, select, textarea {
   display: block;
 }
 
-.piece-row-info {
+.piece-card-info {
   flex: 1;
-  min-width: 180px;
+  min-width: 0;
 }
 
-.piece-row-title {
+.piece-card-title {
   font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  word-break: break-word;
 }
 
-.piece-row-meta {
+.piece-card-title .status-pill {
+  margin-left: 8px;
+}
+
+.piece-card-meta {
   color: var(--studio-ink-soft);
   font-size: 15px;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
-.piece-row-actions {
+.piece-card-actions {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.piece-card-move {
+  display: flex;
+  gap: 8px;
+}
+
+.piece-card-move .btn {
+  flex: 1;
+}
+
+.piece-card-delete {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--studio-line);
 }
 
 .status-pill {
@@ -309,14 +375,22 @@ button, input, select, textarea {
 
 /* ---- piece form ---- */
 
+.piece-form-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
 .piece-form {
   background: var(--studio-surface);
   border: 1px solid var(--studio-line);
   border-radius: var(--studio-radius);
-  padding: 24px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* Room at the bottom so the last field isn't hidden behind the sticky
+     save bar — see .form-sticky-bar below. */
+  margin-bottom: 88px;
 }
 
 .field {
@@ -337,14 +411,21 @@ button, input, select, textarea {
   padding: 12px;
   border: 1px solid var(--studio-line);
   border-radius: 8px;
+  /* 16px minimum — anything smaller triggers iOS's zoom-on-focus. */
   font-size: 16px;
   width: 100%;
 }
 
 .field-row {
   display: flex;
+  flex-direction: column;
   gap: 16px;
-  flex-wrap: wrap;
+}
+
+@media (min-width: 480px) {
+  .field-row {
+    flex-direction: row;
+  }
 }
 
 .field-hint {
@@ -353,15 +434,54 @@ button, input, select, textarea {
   margin: -8px 0 0;
 }
 
+.toggle-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.toggle-field input {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.size-section {
+  border-top: 1px solid var(--studio-line);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .media-section {
   border-top: 1px solid var(--studio-line);
   padding-top: 16px;
 }
 
+.media-error {
+  color: var(--studio-danger);
+  font-size: 15px;
+  margin: 8px 0 0;
+}
+
+.upload-notes {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  color: var(--studio-ink-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .drop-zone {
   border: 2px dashed var(--studio-line);
   border-radius: var(--studio-radius);
-  padding: 28px;
+  padding: 28px 16px;
   text-align: center;
   color: var(--studio-ink-soft);
   display: flex;
@@ -375,11 +495,19 @@ button, input, select, textarea {
   background: #fbf3e6;
 }
 
+/* One photo per row on a phone — a caption field plus move buttons don't
+   fit in a narrow grid column. Two-up once there's room for it. */
 .media-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
   margin-top: 16px;
+}
+
+@media (min-width: 560px) {
+  .media-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .media-tile {
@@ -396,23 +524,71 @@ button, input, select, textarea {
 .media-tile img,
 .media-tile video {
   width: 100%;
-  height: 110px;
+  height: 160px;
   object-fit: cover;
   display: block;
+}
+
+.media-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.media-tile-body input {
+  padding: 10px;
+  border: 1px solid var(--studio-line);
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.media-tile-move {
+  display: flex;
+  gap: 8px;
+}
+
+.media-tile-move .btn {
+  flex: 1;
 }
 
 .media-tile-actions {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
+  gap: 8px;
+}
+
+/* Fixed, not sticky: piece-form's padding would otherwise leave the bar
+   inset from the screen edges. Sits below .modal-backdrop's z-index so the
+   delete-photo confirm dialog still renders on top of it. */
+.form-sticky-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  background: var(--studio-surface);
+  border-top: 1px solid var(--studio-line);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
 }
 
 .form-actions {
   display: flex;
-  justify-content: flex-end;
   gap: 10px;
-  padding-top: 8px;
+  width: 100%;
+  max-width: 640px;
+}
+
+@media (min-width: 720px) {
+  .form-actions {
+    max-width: 720px;
+  }
+}
+
+.form-actions .btn {
+  flex: 1;
 }
 
 /* ---- confirm dialog ---- */
