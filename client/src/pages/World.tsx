@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import type { ScrollWorldConfig } from "../lib/scrub-engine";
 // Side-effect import: the engine assigns window.mountScrollWorld at import time.
 // It has no ES exports and returns no destroy handle.
 import "../lib/scrub-engine.js";
 import "./World.css";
 import dotGold from "../assets/dot-gold.png";
+import AmbientAudio from "../components/AmbientAudio.tsx";
 
 // ---------------------------------------------------------------------------
 // Deck — per-section copy for the DOT Designs gallery flight.
@@ -55,6 +57,11 @@ const DECK: ScrollWorldConfig = {
   // The whole film is fetched before the page is revealed (see the gate below):
   // no visitor should meet this site with the animation still missing.
   preload: true,
+  // Idle auto-advance: nudge a visitor who's stopped scrolling forward through
+  // the film rather than leaving them parked. Cancels itself permanently on
+  // any real interaction; the engine arms the countdown once the film is
+  // actually visible (see its onReady path), not at mount.
+  autoScroll: { delay: 3000, dwell: 5200 },
   // Shorter than the deck CTA: this one sits in the topbar next to the nav, and
   // the full sentence is carried by the closing scene's button.
   cta: { label: "Book a consultation", href: deckCta.href },
@@ -241,7 +248,13 @@ export default function World() {
       <div className="dot-brand" aria-label={`DOT Designs: ${brandLine}`}>
         <img className="dot-brand__logo" src={dotGold} alt="DOT Designs" />
       </div>
+      {/* Overlaid the same way as .dot-brand, top-right so it clears the logo.
+          A plain route link, not engine nav — the engine's nav is left alone. */}
+      <Link to="/shop" className="dot-shop">
+        Shop
+      </Link>
       <div ref={containerRef} className="dot-world" />
+      <AmbientAudio />
 
       {/* Loading gate. The whole film is fetched before anything is shown, so the
           scroll animation is there from the first gesture rather than arriving

@@ -95,6 +95,15 @@ export interface ScrollWorldConfig {
   onProgress?: (settled: number, total: number) => void;
   /** Fires once every clip has settled — or immediately if there is nothing to load. */
   onReady?: () => void;
+  /**
+   * Opt-in idle auto-advance. After `delay` ms with no interaction, steps
+   * station to station (via the same snap magnet a keypress uses) every
+   * `dwell` ms, stopping at the last station. Any wheel/touch/key/pointer
+   * input cancels it for the session. Off when omitted. Never runs under
+   * prefers-reduced-motion. Armed once the film is ready to watch, not at
+   * mount, so a host page's own loading gate doesn't eat into the delay.
+   */
+  autoScroll?: { delay?: number; dwell?: number };
 }
 
 declare global {
