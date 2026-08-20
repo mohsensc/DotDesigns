@@ -24,15 +24,43 @@ DotDesigns/
 
 ## Routes
 
-- `/` — **World**, the scroll-world cinematic (home).
+- `/` — **World**, the scroll cinematic (home).
+- `/shop` — the catalog grid.
+- `/shop/:slug` — one piece.
+- `/shop/request` — the Special Request enquiry (composes a mailto, no backend).
 - `/cover` — the previous editorial Cover page (kept reachable).
 - everything else — 404.
+
+The catalog lives in `client/src/lib/catalog.ts` (types, price bands, demo pieces)
+and `client/src/lib/catalog-store.ts` (persistence). The store is a seam: today it
+reads localStorage and IndexedDB, so swapping in a real API later is one file.
+
+There's a second build target for the artist's listing tool — see `docs/studio.md`.
+
+## SEO / link previews
+
+Crawlers don't run JS, so `scripts/build.mjs` prerenders real HTML per route
+after the Vite build: `dist/index.html`, `dist/shop/index.html`, and
+`dist/shop/<slug>/index.html` for every piece, each with its own title, OG/
+Twitter tags, canonical link, and Product JSON-LD. It also writes
+`sitemap.xml` and `robots.txt`. Public target only — the studio build gets a
+disallow-all `robots.txt` instead.
+
+Only pieces committed to `client/src/lib/catalog.demo.json` get a prerendered
+page and og:image. Anything Hajar adds through the studio isn't in that file,
+so it falls back to the site's default preview until someone adds it to the
+demo catalog and regenerates. Site strings (name, description) are kept in
+sync by hand between `client/src/lib/seo.ts` and `scripts/build.mjs`.
+
+## Sound
+
+A looping ambient track, off by default, toggled bottom-right. Nothing is fetched
+until the visitor asks for it. See `docs/audio.md` for what it is and how it was cut.
 
 ## The engine
 
 `client/src/lib/scrub-engine.js` is a framework-agnostic, zero-dependency vanilla
-engine (originally from the `scroll-world` skill, since extended — see below). It
-builds its own DOM and injects its own namespaced CSS into a container.
+engine. It builds its own DOM and injects its own namespaced CSS into a container.
 `World.tsx` mounts it from a `useEffect` via `window.mountScrollWorld(container,
 CONFIG)` and guards against React StrictMode's double-mount with a
 `data-sw-mounted` flag (the engine exposes no destroy handle). Theme tokens
@@ -103,8 +131,7 @@ Wall** `[0, 0.56]` and **The Studio** `[0.56, 1]`. Their posters are
 `atelier.webp` and `studio.jpg`, the latter cut from the split frame so the two
 scenes meet on the same image and the seam is invisible.
 
-Clips are produced with the scroll-world skill's **Higgsfield pipeline**: each
-scene is generated as a cohesive render, then a seamless camera clip is rendered
+Clips are produced with the camera-clip pipeline: each scene is generated as a cohesive render, then a seamless camera clip is rendered
 flying from outside the scene into its interior (native resolution, `crf ~20`,
 `-g 8`, `+faststart`, no audio). The engine loads each clip as a Blob and scrubs
 `currentTime` against scroll, so it does not depend on HTTP byte-range support.

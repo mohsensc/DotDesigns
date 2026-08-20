@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "updatedAt": "2026-08-20T00:00:00.000Z",
+  "pieces": [
+    {
+      "id": "p-wave-wall",
+      "slug": "the-wave-wall",
+      "title": "The Wave Wall",
+      "year": 2025,
+      "category": "commission",
+      "status": "available",
+      "price": 10000,
+      "blurb": "A rippling gold relief that changes as you move.",
+      "description": "Installed on site over four days, the wave wall is built up fold by fold in plaster and finished in genuine gold leaf. The relief is cut so that the light travels the surface with the viewer — the room is never quite the same twice.\n\nScale, fold depth, and leaf tone are set with the architect. Quoted per wall.",
+      "dimensions": "Sized to the wall",
+      "materials": "Plaster, 23k gold leaf",
+      "media": [
+        {
+          "id": "m-wave-1",
+          "kind": "image",
+          "src": "/world/atelier.webp",
+          "caption": "The gold wave wall, raking light along the folds"
+        }
+      ],
+      "coverId": "m-wave-1",
+      "order": 1,
+      "createdAt": "2026-01-14T00:00:00.000Z"
+    },
+    {
+      "id": "p-monolith",
+      "slug": "monolith-with-cords",
+      "title": "Monolith with Cords",
+      "year": 2025,
+      "category": "wall-relief",
+      "status": "available",
+      "price": 7400,
+      "blurb": "A plaster monolith with a cascade of black cords.",
+      "description": "A single plaster slab, hand-worked while green so the surface keeps the tool. A cascade of waxed black cord falls the full height, weighted at the ends, and moves a little when the room does.\n\nHangs on a French cleat, included.",
+      "size": { "unit": "in", "height": 84, "length": 40 },
+      "materials": "Plaster, waxed cord, steel",
+      "media": [
+        {
+          "id": "m-mono-1",
+          "kind": "image",
+          "src": "/world/gallery.webp",
+          "caption": "Plaster monolith with black cords in the hall"
+        }
+      ],
+      "coverId": "m-mono-1",
+      "order": 2,
+      "createdAt": "2026-02-02T00:00:00.000Z"
+    },
+    {
+      "id": "p-sculpted-light",
+      "slug": "sculpted-by-light",
+      "title": "Sculpted by Light",
+      "year": 2024,
+      "category": "wall-relief",
+      "status": "sold",
+      "price": 6200,
+      "blurb": "High relief cut for a single raking light source.",
+      "description": "Built for one wall and one lamp. The relief is shallow at the edges and deepest at the centre, so at the right angle the whole panel reads as a single fold of cloth.\n\nSold — a close variation can be commissioned.",
+      "size": { "unit": "in", "height": 60, "length": 48 },
+      "materials": "Plaster, pigment",
+      "media": [
+        {
+          "id": "m-light-1",
+          "kind": "image",
+          "src": "/world/arrival.webp",
+          "caption": "Relief panel lit from the side"
+        }
+      ],
+      "coverId": "m-light-1",
+      "order": 3,
+      "createdAt": "2025-11-20T00:00:00.000Z"
+    },
+    {
+      "id": "p-studio-vessel",
+      "slug": "studio-vessel-no-4",
+      "title": "Studio Vessel No. 4",
+      "year": 2026,
+      "category": "pottery",
+      "status": "available",
+      "price": 640,
+      "blurb": "Hand-built vessel, matte bone glaze.",
+      "description": "Coil-built and scraped back, then glazed in a matte bone white that pools slightly at the foot. Watertight. One of a short run, each a little different.",
+      "size": { "unit": "in", "height": 11, "length": 7, "depth": 7 },
+      "materials": "Stoneware, matte glaze",
+      "media": [],
+      "order": 4,
+      "createdAt": "2026-03-08T00:00:00.000Z"
+    },
+    {
+      "id": "p-small-bowl",
+      "slug": "ash-bowl",
+      "title": "Ash Bowl",
+      "year": 2026,
+      "category": "pottery",
+      "status": "available",
+      "price": 500,
+      "blurb": "Small wheel-thrown bowl in a grey ash glaze.",
+      "description": "Wheel-thrown, trimmed thin, finished in a grey ash glaze that breaks warm over the rim. Dishwasher safe, though it would rather you didn't.",
+      "size": { "unit": "in", "height": 4, "length": 9, "depth": 9 },
+      "materials": "Stoneware, ash glaze",
+      "media": [],
+      "order": 5,
+      "createdAt": "2026-03-30T00:00:00.000Z"
+    },
+    {
+      "id": "p-figure-drapery",
+      "slug": "figure-in-drapery",
+      "title": "Figure in Drapery",
+      "year": 2025,
+      "category": "sculpture",
+      "status": "reserved",
+      "price": 4800,
+      "blurb": "A sculpted figure caught mid-motion, backlit.",
+      "description": "A half-scale figure worked in plaster over armature, the drapery pulled so it reads as movement from every side. Meant to be backlit — the shadow it throws is half the piece.\n\nCurrently reserved. Ask to be told if it frees up.",
+      "size": { "unit": "in", "height": 38, "length": 16, "depth": 16 },
+      "materials": "Plaster, steel armature",
+      "media": [
+        {
+          "id": "m-fig-1",
+          "kind": "image",
+          "src": "/world/gallery.webp",
+          "caption": "Sculpted figure in drapery, backlit"
+        }
+      ],
+      "coverId": "m-fig-1",
+      "order": 6,
+      "createdAt": "2025-09-12T00:00:00.000Z"
+    }
+  ]
+}

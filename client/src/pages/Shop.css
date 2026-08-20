@@ -1,0 +1,208 @@
+.shop {
+  /* Aliases onto the house palette in index.css. The shop and the scroll film
+     must not hold separate copies of these hexes — that's how they drift. */
+  --sh-bg: var(--dot-bg);
+  --sh-ink: var(--dot-ink);
+  --sh-ink-soft: var(--dot-ink-soft);
+  --sh-accent: var(--dot-accent);
+  --sh-font-display: var(--dot-font-display);
+  --sh-font-body: var(--dot-font-body);
+
+  min-height: 100vh;
+  background: var(--sh-bg);
+  color: var(--sh-ink);
+  padding: clamp(24px, 4vw, 56px) clamp(20px, 5vw, 72px) clamp(64px, 8vw, 120px);
+}
+
+.shop__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: clamp(20px, 3vw, 32px);
+  border-bottom: 1px solid color-mix(in srgb, var(--sh-accent) 24%, transparent);
+}
+
+.shop__brand-logo {
+  display: block;
+  width: 120px;
+  max-width: 34vw;
+  height: auto;
+}
+
+.shop__back {
+  font-family: var(--sh-font-body);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.shop__back:hover {
+  color: var(--sh-accent);
+}
+
+.shop__intro {
+  max-width: 640px;
+  margin: clamp(40px, 6vw, 72px) 0 clamp(32px, 5vw, 56px);
+}
+
+.shop__eyebrow {
+  margin: 0;
+  font-family: var(--sh-font-body);
+  font-size: 0.72rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--sh-accent);
+}
+
+.shop__title {
+  margin: 16px 0 0;
+  font-family: var(--sh-font-display);
+  font-weight: 500;
+  font-size: clamp(2.1rem, 4.2vw, 3.2rem);
+  line-height: 1.05;
+}
+
+.shop__lede {
+  margin: 18px 0 0;
+  font-family: var(--sh-font-body);
+  font-weight: 300;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--sh-ink-soft);
+}
+
+.shop__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(18px, 3vw, 34px);
+  margin-bottom: clamp(32px, 5vw, 56px);
+}
+
+.shop__filter {
+  background: none;
+  border: none;
+  padding: 0 0 8px;
+  font-family: var(--sh-font-body);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.shop__filter:hover {
+  color: var(--sh-ink);
+}
+
+.shop__filter.is-active {
+  color: var(--sh-ink);
+  border-bottom-color: var(--sh-accent);
+}
+
+.shop__filter:focus-visible {
+  outline: 1px solid var(--sh-accent);
+  outline-offset: 3px;
+}
+
+.shop__status {
+  font-family: var(--sh-font-body);
+  color: var(--sh-ink-soft);
+  padding: 40px 0;
+}
+
+.shop__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: clamp(28px, 3vw, 44px);
+}
+
+.shop__cta {
+  margin-top: clamp(72px, 9vw, 120px);
+  padding-top: clamp(32px, 5vw, 48px);
+  border-top: 1px solid color-mix(in srgb, var(--sh-accent) 24%, transparent);
+  max-width: 560px;
+  text-align: left;
+}
+
+.shop__cta-eyebrow {
+  margin: 0;
+  font-family: var(--sh-font-body);
+  font-size: 0.72rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--sh-accent);
+}
+
+.shop__cta-title {
+  margin: 14px 0 0;
+  font-family: var(--sh-font-display);
+  font-weight: 500;
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+}
+
+.shop__cta-lede {
+  margin: 14px 0 0;
+  font-family: var(--sh-font-body);
+  font-weight: 300;
+  color: var(--sh-ink-soft);
+  line-height: 1.6;
+}
+
+.shop__cta-link {
+  margin-top: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--sh-font-body);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sh-ink);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--sh-accent) 50%, transparent);
+  padding-bottom: 6px;
+  transition: border-color 0.3s ease;
+}
+
+.shop__cta-link:hover {
+  border-color: var(--sh-accent);
+}
+
+.shop__cta-arrow {
+  color: var(--sh-accent);
+  transition: transform 0.3s ease;
+}
+
+.shop__cta-link:hover .shop__cta-arrow {
+  transform: translateX(4px);
+}
+
+.shop__cta-link:focus-visible {
+  outline: 1px solid var(--sh-accent);
+  outline-offset: 4px;
+}
+
+@media (max-width: 560px) {
+  .shop__header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .shop__back {
+    font-size: 0.68rem;
+  }
+
+  .shop__filters {
+    gap: 16px 22px;
+  }
+
+  .shop__grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 22px;
+  }
+}

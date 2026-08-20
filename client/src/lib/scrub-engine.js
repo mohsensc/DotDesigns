@@ -1,5 +1,5 @@
 /* ============================================================================
-   scroll-world — portable scroll-scrubbed camera-flight engine
+   portable scroll-scrubbed camera-flight engine
    ----------------------------------------------------------------------------
    Framework-agnostic. Vanilla JS, zero dependencies. It builds its own DOM and
    injects its own (namespaced) CSS into a container you give it, so it drops into
@@ -33,8 +33,8 @@
      The engine is phone-aware out of the box: on a coarse-pointer / ≤860px viewport it
        - loads `clipMobile` / `connectorsMobile` when provided (encode these smaller +
          tighter-GOP — seek cost on a phone decoder is dominated by frames-from-keyframe,
-         so a 720p, -g 4 file scrubs far smoother than the 1080p desktop master; see
-         pipeline.md). Falls back to the desktop `clip` if no mobile variant is given.
+         so a 720p, -g 4 file scrubs far smoother than the 1080p desktop master).
+         Falls back to the desktop `clip` if no mobile variant is given.
        - uses `stillMobile` as the scene poster when provided (pair it with native 9:16
          clipMobile renders so the poster matches the portrait video's first frame instead
          of flashing from a landscape crop). Chosen once at mount; a desktop resize into
@@ -56,8 +56,8 @@
      --sw-font-display / --sw-font-body
 
    REQUIREMENTS ON YOUR ASSETS
-     - clips encoded native-res, crf~20, -g 8, +faststart, no audio (see pipeline.md)
-     - connectors' endpoints are the neighbouring dives' ACTUAL frames (see SKILL Step 5)
+     - clips encoded native-res, crf~20, -g 8, +faststart, no audio
+     - connectors' endpoints are the neighbouring dives' ACTUAL frames
      - (optional) mobile variants at ~720p, -g 4 for smoother phone scrubbing
    The engine loads each clip as a Blob (always seekable) and scrubs currentTime; it does
    NOT depend on HTTP byte-range support.
@@ -338,6 +338,51 @@ function mountScrollWorld(container, config) {
     window.scrollTo({ top: seg.start + (seg.end - seg.start) * 0.5, behavior: reduce ? 'auto' : 'smooth' });
   }
 
+  // ---- auto-scroll (opt-in) --------------------------------------------------
+  // `autoScroll: { delay, dwell }` — after `delay` ms with no interaction, step
+  // through the stations on the visitor's behalf, one per `dwell` ms, via the
+  // existing gotoStation. That reuses the snap magnet (see the scroll listener's
+  // settleTimer) rather than a second rAF loop fighting it. Any real interaction
+  // cancels it for the session. Armed from announceReady (below), not at mount —
+  // a host page holding a loading gate behind onReady would otherwise burn the
+  // delay before the visitor can see anything.
+  //
+  // This block sits ABOVE the readiness accounting on purpose: that block can
+  // call announceReady() synchronously (reduced motion, or a config with no
+  // clips), and announceReady calls armAutoScroll. These bindings have to be
+  // initialised by then or that path throws on the temporal dead zone.
+  const AUTO = config.autoScroll;
+  let autoTimer = 0, autoInterval = 0, autoCancelled = !AUTO || reduce;
+  function cancelAutoScroll() {
+    if (autoCancelled) return;
+    autoCancelled = true;
+    clearTimeout(autoTimer);
+    clearInterval(autoInterval);
+  }
+  function armAutoScroll() {
+    if (autoCancelled) return;
+    const delay = AUTO.delay != null ? AUTO.delay : 3000;
+    const dwell = AUTO.dwell != null ? AUTO.dwell : 5200;
+    autoTimer = window.setTimeout(() => {
+      if (autoCancelled) return;
+      autoInterval = window.setInterval(() => {
+        if (autoCancelled) { clearInterval(autoInterval); return; }
+        const y = window.scrollY || window.pageYOffset;
+        // Never wrap: once the last station is reached, stop advancing.
+        if (!stations.length || y >= stations[stations.length - 1] - 1) {
+          clearInterval(autoInterval);
+          return;
+        }
+        gotoStation(1);
+      }, dwell);
+    }, delay);
+  }
+  if (!autoCancelled) {
+    ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(evt =>
+      window.addEventListener(evt, cancelAutoScroll, { passive: true })
+    );
+  }
+
   // ---- readiness accounting (drives the host page's loading gate) -----------
   // A clip counts as settled once it is decodable (metadata in) or has failed for
   // good. Failures still count so a single missing file can never wedge a page
@@ -347,6 +392,7 @@ function mountScrollWorld(container, config) {
   function announceReady() {
     if (announcedReady) return;
     announcedReady = true;
+    armAutoScroll();
     if (config.onReady) { try { config.onReady(); } catch (e) {} }
   }
   function noteSettled() {
