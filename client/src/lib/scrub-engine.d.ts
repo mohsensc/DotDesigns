@@ -1,4 +1,4 @@
-// Type surface for the vanilla-JS scroll-world engine (scrub-engine.js).
+// Type surface for the vanilla-JS scrub engine (scrub-engine.js).
 //
 // The engine is imported for its side effect only: at import time it assigns
 // `window.mountScrollWorld`. It exposes no ES module exports and returns no

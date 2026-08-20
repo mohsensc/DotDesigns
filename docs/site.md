@@ -24,7 +24,7 @@ DotDesigns/
 
 ## Routes
 
-- `/` — **World**, the scroll-world cinematic (home).
+- `/` — **World**, the scroll cinematic (home).
 - `/shop` — the catalog grid.
 - `/shop/:slug` — one piece.
 - `/shop/request` — the Special Request enquiry (composes a mailto, no backend).
@@ -60,8 +60,7 @@ until the visitor asks for it. See `docs/audio.md` for what it is and how it was
 ## The engine
 
 `client/src/lib/scrub-engine.js` is a framework-agnostic, zero-dependency vanilla
-engine (originally from the `scroll-world` skill, since extended — see below). It
-builds its own DOM and injects its own namespaced CSS into a container.
+engine. It builds its own DOM and injects its own namespaced CSS into a container.
 `World.tsx` mounts it from a `useEffect` via `window.mountScrollWorld(container,
 CONFIG)` and guards against React StrictMode's double-mount with a
 `data-sw-mounted` flag (the engine exposes no destroy handle). Theme tokens
@@ -132,8 +131,7 @@ Wall** `[0, 0.56]` and **The Studio** `[0.56, 1]`. Their posters are
 `atelier.webp` and `studio.jpg`, the latter cut from the split frame so the two
 scenes meet on the same image and the seam is invisible.
 
-Clips are produced with the scroll-world skill's **Higgsfield pipeline**: each
-scene is generated as a cohesive render, then a seamless camera clip is rendered
+Clips are produced with the camera-clip pipeline: each scene is generated as a cohesive render, then a seamless camera clip is rendered
 flying from outside the scene into its interior (native resolution, `crf ~20`,
 `-g 8`, `+faststart`, no audio). The engine loads each clip as a Blob and scrubs
 `currentTime` against scroll, so it does not depend on HTTP byte-range support.

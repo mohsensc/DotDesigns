@@ -1,5 +1,5 @@
 /* ============================================================================
-   scroll-world — portable scroll-scrubbed camera-flight engine
+   portable scroll-scrubbed camera-flight engine
    ----------------------------------------------------------------------------
    Framework-agnostic. Vanilla JS, zero dependencies. It builds its own DOM and
    injects its own (namespaced) CSS into a container you give it, so it drops into
@@ -33,8 +33,8 @@
      The engine is phone-aware out of the box: on a coarse-pointer / ≤860px viewport it
        - loads `clipMobile` / `connectorsMobile` when provided (encode these smaller +
          tighter-GOP — seek cost on a phone decoder is dominated by frames-from-keyframe,
-         so a 720p, -g 4 file scrubs far smoother than the 1080p desktop master; see
-         pipeline.md). Falls back to the desktop `clip` if no mobile variant is given.
+         so a 720p, -g 4 file scrubs far smoother than the 1080p desktop master).
+         Falls back to the desktop `clip` if no mobile variant is given.
        - uses `stillMobile` as the scene poster when provided (pair it with native 9:16
          clipMobile renders so the poster matches the portrait video's first frame instead
          of flashing from a landscape crop). Chosen once at mount; a desktop resize into
@@ -56,8 +56,8 @@
      --sw-font-display / --sw-font-body
 
    REQUIREMENTS ON YOUR ASSETS
-     - clips encoded native-res, crf~20, -g 8, +faststart, no audio (see pipeline.md)
-     - connectors' endpoints are the neighbouring dives' ACTUAL frames (see SKILL Step 5)
+     - clips encoded native-res, crf~20, -g 8, +faststart, no audio
+     - connectors' endpoints are the neighbouring dives' ACTUAL frames
      - (optional) mobile variants at ~720p, -g 4 for smoother phone scrubbing
    The engine loads each clip as a Blob (always seekable) and scrubs currentTime; it does
    NOT depend on HTTP byte-range support.
