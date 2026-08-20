@@ -37,6 +37,21 @@ reads localStorage and IndexedDB, so swapping in a real API later is one file.
 
 There's a second build target for the artist's listing tool — see `docs/studio.md`.
 
+## SEO / link previews
+
+Crawlers don't run JS, so `scripts/build.mjs` prerenders real HTML per route
+after the Vite build: `dist/index.html`, `dist/shop/index.html`, and
+`dist/shop/<slug>/index.html` for every piece, each with its own title, OG/
+Twitter tags, canonical link, and Product JSON-LD. It also writes
+`sitemap.xml` and `robots.txt`. Public target only — the studio build gets a
+disallow-all `robots.txt` instead.
+
+Only pieces committed to `client/src/lib/catalog.demo.json` get a prerendered
+page and og:image. Anything Hajar adds through the studio isn't in that file,
+so it falls back to the site's default preview until someone adds it to the
+demo catalog and regenerates. Site strings (name, description) are kept in
+sync by hand between `client/src/lib/seo.ts` and `scripts/build.mjs`.
+
 ## Sound
 
 A looping ambient track, off by default, toggled bottom-right. Nothing is fetched
