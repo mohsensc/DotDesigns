@@ -25,8 +25,22 @@ DotDesigns/
 ## Routes
 
 - `/` — **World**, the scroll-world cinematic (home).
+- `/shop` — the catalog grid.
+- `/shop/:slug` — one piece.
+- `/shop/request` — the Special Request enquiry (composes a mailto, no backend).
 - `/cover` — the previous editorial Cover page (kept reachable).
 - everything else — 404.
+
+The catalog lives in `client/src/lib/catalog.ts` (types, price bands, demo pieces)
+and `client/src/lib/catalog-store.ts` (persistence). The store is a seam: today it
+reads localStorage and IndexedDB, so swapping in a real API later is one file.
+
+There's a second build target for the artist's listing tool — see `docs/studio.md`.
+
+## Sound
+
+A looping ambient track, off by default, toggled bottom-right. Nothing is fetched
+until the visitor asks for it. See `docs/audio.md` for what it is and how it was cut.
 
 ## The engine
 

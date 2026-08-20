@@ -3,5 +3,7 @@ client/node_modules
 server/node_modules
 client/dist
 server/dist
+# both deploy targets build to the repo root (see scripts/build.mjs)
+/dist
 .DS_Store
 *.log

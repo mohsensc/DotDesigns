@@ -1,0 +1,444 @@
+/* Dot Designs Studio — Hajar's private catalog tool.
+   Calm, plain, big tap targets. The public site's design work lives
+   elsewhere; this just needs to be obvious and hard to get wrong. */
+
+:root {
+  --studio-bg: #f6f4f1;
+  --studio-surface: #ffffff;
+  --studio-ink: #2a2622;
+  --studio-ink-soft: #6b6459;
+  --studio-line: #e4dfd7;
+  --studio-accent: #a8752f;
+  --studio-accent-ink: #ffffff;
+  --studio-danger: #b3432f;
+  --studio-radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  color: var(--studio-ink);
+  background: var(--studio-bg);
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+h1, h2 {
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+h1 {
+  font-size: 26px;
+}
+
+h2 {
+  font-size: 19px;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.studio-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-size: 18px;
+  color: var(--studio-ink-soft);
+}
+
+/* ---- lock screen ---- */
+
+.lock-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.lock-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--studio-surface);
+  border-radius: var(--studio-radius);
+  padding: 32px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.lock-hint {
+  color: var(--studio-ink-soft);
+  margin-top: 0;
+}
+
+.lock-label {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 6px;
+  margin-top: 16px;
+}
+
+.lock-input {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--studio-line);
+  border-radius: 8px;
+  font-size: 17px;
+}
+
+.lock-error {
+  color: var(--studio-danger);
+  font-size: 15px;
+}
+
+.lock-submit {
+  width: 100%;
+  margin-top: 16px;
+}
+
+/* ---- layout ---- */
+
+.studio {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+
+.studio-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.studio-header-title {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.studio-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio-honesty-banner {
+  background: #fbf3e6;
+  border: 1px solid #ecd9b8;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: var(--studio-ink);
+  margin-bottom: 24px;
+  font-size: 15px;
+}
+
+.import-error {
+  color: var(--studio-danger);
+  margin-bottom: 16px;
+}
+
+/* ---- buttons ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--studio-accent);
+  color: var(--studio-accent-ink);
+}
+
+.btn-plain {
+  background: var(--studio-surface);
+  border-color: var(--studio-line);
+  color: var(--studio-ink);
+}
+
+.btn-danger {
+  background: var(--studio-surface);
+  border-color: var(--studio-danger);
+  color: var(--studio-danger);
+}
+
+.btn-small {
+  padding: 8px 12px;
+  min-height: 36px;
+  font-size: 14px;
+}
+
+.file-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.file-btn input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ---- piece list ---- */
+
+.piece-list-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.empty-note {
+  color: var(--studio-ink-soft);
+}
+
+.piece-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.piece-row {
+  background: var(--studio-surface);
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.piece-row-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--studio-bg);
+}
+
+.piece-row-thumb img,
+.piece-row-thumb video,
+.media-thumb-empty,
+.piece-row-thumb-empty {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.piece-row-info {
+  flex: 1;
+  min-width: 180px;
+}
+
+.piece-row-title {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.piece-row-meta {
+  color: var(--studio-ink-soft);
+  font-size: 15px;
+  margin-top: 2px;
+}
+
+.piece-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.status-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--studio-line);
+  color: var(--studio-ink-soft);
+}
+
+.status-available {
+  background: #e2efe4;
+  color: #366043;
+}
+
+.status-sold {
+  background: #f2e3e0;
+  color: #8a4433;
+}
+
+.status-reserved {
+  background: #eee6d8;
+  color: #8a6c30;
+}
+
+.status-draft {
+  background: var(--studio-line);
+  color: var(--studio-ink-soft);
+}
+
+/* ---- piece form ---- */
+
+.piece-form {
+  background: var(--studio-surface);
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.field span {
+  font-size: 14px;
+  color: var(--studio-ink-soft);
+}
+
+.field input,
+.field select,
+.field textarea {
+  padding: 12px;
+  border: 1px solid var(--studio-line);
+  border-radius: 8px;
+  font-size: 16px;
+  width: 100%;
+}
+
+.field-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.field-hint {
+  font-size: 13px;
+  color: var(--studio-ink-soft);
+  margin: -8px 0 0;
+}
+
+.media-section {
+  border-top: 1px solid var(--studio-line);
+  padding-top: 16px;
+}
+
+.drop-zone {
+  border: 2px dashed var(--studio-line);
+  border-radius: var(--studio-radius);
+  padding: 28px;
+  text-align: center;
+  color: var(--studio-ink-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.drop-zone-active {
+  border-color: var(--studio-accent);
+  background: #fbf3e6;
+}
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.media-tile {
+  border: 2px solid var(--studio-line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--studio-bg);
+}
+
+.media-tile-cover {
+  border-color: var(--studio-accent);
+}
+
+.media-tile img,
+.media-tile video {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  display: block;
+}
+
+.media-tile-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+/* ---- confirm dialog ---- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 26, 20, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 10;
+}
+
+.modal-card {
+  background: var(--studio-surface);
+  border-radius: var(--studio-radius);
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}

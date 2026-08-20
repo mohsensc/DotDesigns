@@ -7,6 +7,8 @@
     "install:all": "npm install && npm install --prefix client && npm install --prefix server",
     "dev": "concurrently -n client,server -c magenta,green \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
     "build": "npm run build --prefix client && npm run build --prefix server",
+    "build:site": "node scripts/build.mjs",
+    "build:studio": "DEPLOY_TARGET=studio node scripts/build.mjs",
     "start": "npm run start --prefix server"
   },
   "devDependencies": {
