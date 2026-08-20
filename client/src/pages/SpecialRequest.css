@@ -1,10 +1,12 @@
 .request {
-  --rq-bg: #141210;
-  --rq-ink: #f2ede4;
-  --rq-ink-soft: #a79e8c;
-  --rq-accent: #b19556;
-  --rq-font-display: "Playfair Display", Georgia, "Times New Roman", serif;
-  --rq-font-body: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  /* Aliases onto the house palette in index.css. The shop and the scroll film
+     must not hold separate copies of these hexes — that's how they drift. */
+  --rq-bg: var(--dot-bg);
+  --rq-ink: var(--dot-ink);
+  --rq-ink-soft: var(--dot-ink-soft);
+  --rq-accent: var(--dot-accent);
+  --rq-font-display: var(--dot-font-display);
+  --rq-font-body: var(--dot-font-body);
 
   min-height: 100vh;
   background: var(--rq-bg);
@@ -194,6 +196,27 @@
   font-family: var(--rq-font-body);
   font-size: 0.76rem;
   color: var(--rq-ink-soft);
+}
+
+/* Visually hidden, not display:none — some bots skip elements set that way. */
+.request__hp {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.request__fallback {
+  margin: 0;
+  font-family: var(--rq-font-body);
+  font-size: 0.82rem;
+  color: var(--rq-ink-soft);
+}
+
+.request__fallback a {
+  color: var(--rq-accent);
 }
 
 .request__submit {

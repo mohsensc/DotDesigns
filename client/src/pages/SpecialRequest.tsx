@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { PRICE_BANDS, formatPrice } from "../lib/catalog";
+import { CONTACT_EMAIL, looksLikeEmail, sendInquiry } from "../lib/inquiry";
+import { useDocumentTitle } from "../lib/use-document-title";
 import "./SpecialRequest.css";
 
 type FormState = {
@@ -11,7 +13,11 @@ type FormState = {
   dimensions: string;
   timeline: string;
   bandId: string;
+  /** Honeypot. Real people never see this field. */
+  website: string;
 };
+
+type SendState = "idle" | "sending" | "sent" | "failed";
 
 const EMPTY: FormState = {
   name: "",
@@ -21,6 +27,7 @@ const EMPTY: FormState = {
   dimensions: "",
   timeline: "",
   bandId: "",
+  website: "",
 };
 
 function buildMessage(f: FormState): string {
@@ -40,13 +47,17 @@ function buildMessage(f: FormState): string {
 }
 
 export default function SpecialRequest() {
+  useDocumentTitle("Special Request");
+
   const [form, setForm] = useState<FormState>(EMPTY);
   const [touched, setTouched] = useState(false);
+  const [sendState, setSendState] = useState<SendState>("idle");
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const errors = useMemo(() => {
     const e: Partial<Record<keyof FormState, string>> = {};
     if (!form.name.trim()) e.name = "Tell us your name.";
-    if (!form.email.trim() || !form.email.includes("@")) e.email = "A working email, please.";
+    if (!form.email.trim() || !looksLikeEmail(form.email)) e.email = "A working email, please.";
     if (!form.brief.trim()) e.brief = "A line or two on what you're picturing.";
     if (!form.bandId) e.bandId = "Pick the range closest to your budget.";
     return e;
@@ -59,12 +70,50 @@ export default function SpecialRequest() {
     setForm(prev => ({ ...prev, [key]: value }));
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setTouched(true);
-    if (!isValid) return;
-    const subject = `Special request — ${form.name}`;
-    window.location.href = `mailto:hello@dotdesigns.ca?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+    if (!isValid || sendState === "sending") return;
+
+    const band = PRICE_BANDS.find(b => b.id === form.bandId);
+    setSendState("sending");
+    setSendError(null);
+
+    const result = await sendInquiry({
+      kind: "request",
+      name: form.name.trim(),
+      email: form.email.trim(),
+      message: form.brief.trim(),
+      space: form.space.trim(),
+      dimensions: form.dimensions.trim(),
+      timeline: form.timeline.trim(),
+      priceBand: band ? `${band.label} — ${band.note}` : undefined,
+      website: form.website,
+    });
+
+    if (result.ok) {
+      setSendState("sent");
+    } else {
+      setSendState("failed");
+      setSendError(result.error);
+    }
+  }
+
+  if (sendState === "sent") {
+    return (
+      <main className="request">
+        <Link to="/shop" className="request__back">
+          &larr; Back to the shop
+        </Link>
+        <header className="request__header">
+          <p className="request__eyebrow">Special Request</p>
+          <h1 className="request__title">Got it — thank you.</h1>
+          <p className="request__lede">
+            The studio has your request and will reply to {form.email} directly.
+          </p>
+        </header>
+      </main>
+    );
   }
 
   return (
@@ -160,17 +209,43 @@ export default function SpecialRequest() {
             {touched && errors.bandId && <p className="request__error">{errors.bandId}</p>}
           </fieldset>
 
-          <button type="submit" className="request__submit">
-            Send the request
+          {/* Honeypot — hidden from real visitors, not display:none since some
+              bots skip that. Anything filled in here means it's a bot. */}
+          <div className="request__hp" aria-hidden="true">
+            <label htmlFor="rq-website">Website</label>
+            <input
+              id="rq-website"
+              name="website"
+              type="text"
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              value={form.website}
+              onChange={e => set("website", e.target.value)}
+            />
+          </div>
+
+          {sendState === "failed" && sendError && <p className="request__error">{sendError}</p>}
+
+          <button type="submit" className="request__submit" disabled={sendState === "sending"}>
+            {sendState === "sending" ? "Sending…" : "Send the request"}
           </button>
+
+          {sendState === "failed" && (
+            <p className="request__fallback">
+              Or email{" "}
+              <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> directly — the message
+              below is ready to copy in.
+            </p>
+          )}
         </form>
 
         <aside className="request__preview">
           <p className="request__preview-label">Message preview</p>
           <pre className="request__preview-body">{message}</pre>
           <p className="request__preview-hint">
-            If your mail client doesn't open, copy this and send it to{" "}
-            <a href="mailto:hello@dotdesigns.ca">hello@dotdesigns.ca</a>.
+            If sending fails, copy this and send it to{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
           </p>
         </aside>
       </div>

@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { loadCatalog, resolveMedia } from "../lib/catalog-store";
+import { sendInquiry, looksLikeEmail, CONTACT_EMAIL } from "../lib/inquiry";
+import { useDocumentTitle } from "../lib/use-document-title";
 import {
   coverOf,
   formatPrice,
+  formatSize,
+  altOf,
   CATEGORY_LABELS,
   STATUS_LABELS,
   type Catalog,
   type MediaRef,
 } from "../lib/catalog";
+import ScaleFigure from "../components/ScaleFigure";
 import "./PieceDetail.css";
+
+type SendState = "idle" | "sending" | "sent" | "failed";
 
 export default function PieceDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -28,6 +35,8 @@ export default function PieceDetail() {
   }, []);
 
   const piece = useMemo(() => catalog?.pieces.find(p => p.slug === slug), [catalog, slug]);
+
+  useDocumentTitle(piece?.title);
 
   // Cover first, then the rest of the piece's media in stored order.
   const orderedMedia: MediaRef[] = useMemo(() => {
@@ -52,6 +61,28 @@ export default function PieceDetail() {
     };
   }, [piece, orderedMedia]);
 
+  // Enquiry form state. Prefilled once per piece, not on every render.
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot
+  const [sendState, setSendState] = useState<SendState>("idle");
+  const [sendError, setSendError] = useState("");
+
+  useEffect(() => {
+    if (!piece) return;
+    setName("");
+    setEmail("");
+    setSendState("idle");
+    setSendError("");
+    const unavailable = piece.status === "sold" || piece.status === "reserved";
+    setMessage(
+      unavailable
+        ? `Hi, I'm interested in something similar to "${piece.title}". Could you tell me about a comparable commission?`
+        : `Hi, I'd like to ask about "${piece.title}".`,
+    );
+  }, [piece]);
+
   if (catalog && !piece) {
     return (
       <main className="piece-detail piece-detail--empty">
@@ -74,15 +105,34 @@ export default function PieceDetail() {
 
   const active = orderedMedia.find(m => m.id === activeId) ?? orderedMedia[0];
   const activeSrc = active ? mediaSrcs[active.id] : "";
-  const unavailable = piece.status === "sold" || piece.status === "reserved";
+  const size = formatSize(piece);
 
-  const mailSubject = unavailable
-    ? `Enquiry: something like "${piece.title}"`
-    : `Enquiry: "${piece.title}" (${formatPrice(piece.price)})`;
-  const mailBody = unavailable
-    ? `Hi,\n\nI'm interested in something similar to "${piece.title}" (${formatPrice(piece.price)}), which I understand is currently ${STATUS_LABELS[piece.status].toLowerCase()}. Could you tell me about a comparable commission?\n\n`
-    : `Hi,\n\nI'd like to ask about "${piece.title}", listed at ${formatPrice(piece.price)}.\n\n`;
-  const mailHref = `mailto:hello@dotdesigns.ca?subject=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!piece) return;
+    if (!name.trim() || !looksLikeEmail(email) || !message.trim()) {
+      setSendState("failed");
+      setSendError("Fill in your name, a valid email, and a message.");
+      return;
+    }
+    setSendState("sending");
+    setSendError("");
+    const result = await sendInquiry({
+      kind: "piece",
+      name: name.trim(),
+      email: email.trim(),
+      message: message.trim(),
+      pieceTitle: piece.title,
+      pieceSlug: piece.slug,
+      website,
+    });
+    if (result.ok) {
+      setSendState("sent");
+    } else {
+      setSendState("failed");
+      setSendError(result.error);
+    }
+  }
 
   return (
     <main className="piece-detail">
@@ -97,12 +147,13 @@ export default function PieceDetail() {
               active.kind === "video" ? (
                 <video className="piece-detail__stage-media" src={activeSrc} controls muted playsInline />
               ) : (
-                <img className="piece-detail__stage-media" src={activeSrc} alt={active.alt || piece.title} />
+                <img className="piece-detail__stage-media" src={activeSrc} alt={altOf(active, piece)} />
               )
             ) : (
               <div className="piece-detail__placeholder" aria-hidden="true" />
             )}
           </div>
+          {active?.caption && <p className="piece-detail__caption">{active.caption}</p>}
 
           {orderedMedia.length > 1 && (
             <div className="piece-detail__thumbs">
@@ -112,7 +163,7 @@ export default function PieceDetail() {
                   type="button"
                   className={`piece-detail__thumb${m.id === activeId ? " is-active" : ""}`}
                   onClick={() => setActiveId(m.id)}
-                  aria-label={m.alt || piece.title}
+                  aria-label={altOf(m, piece)}
                   aria-current={m.id === activeId}
                 >
                   {mediaSrcs[m.id] ? (
@@ -142,12 +193,12 @@ export default function PieceDetail() {
           <p className="piece-detail__price">{formatPrice(piece.price)}</p>
           <p className="piece-detail__description">{piece.description}</p>
 
-          {(piece.dimensions || piece.materials) && (
+          {(size || piece.materials) && (
             <dl className="piece-detail__specs">
-              {piece.dimensions && (
+              {size && (
                 <div className="piece-detail__spec">
                   <dt>Dimensions</dt>
-                  <dd>{piece.dimensions}</dd>
+                  <dd>{size}</dd>
                 </div>
               )}
               {piece.materials && (
@@ -159,12 +210,80 @@ export default function PieceDetail() {
             </dl>
           )}
 
+          <ScaleFigure size={piece.size} formatted={size} />
+
           <div className="piece-detail__action">
-            <a className="piece-detail__enquire" href={mailHref}>
-              {unavailable ? "Ask about a similar piece" : "Enquire about this piece"}
-            </a>
-            {/* Buy-now goes here once Stripe Checkout is wired up. Until then
-                every path — available or not — hands off to email on purpose. */}
+            {sendState === "sent" ? (
+              <p className="piece-detail__sent">
+                Sent. We'll get back to you at {email}.
+              </p>
+            ) : (
+              <form className="piece-detail__form" onSubmit={handleSubmit} noValidate>
+                <h2 className="piece-detail__form-title">
+                  {piece.status === "sold" || piece.status === "reserved"
+                    ? "Ask about a similar piece"
+                    : "Enquire about this piece"}
+                </h2>
+
+                {/* Honeypot: real visitors never see or fill this in. */}
+                <label className="piece-detail__honeypot" aria-hidden="true" tabIndex={-1}>
+                  Website
+                  <input
+                    type="text"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={website}
+                    onChange={e => setWebsite(e.target.value)}
+                  />
+                </label>
+
+                <label className="piece-detail__field">
+                  <span>Name</span>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    required
+                  />
+                </label>
+                <label className="piece-detail__field">
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                  />
+                </label>
+                <label className="piece-detail__field">
+                  <span>Message</span>
+                  <textarea
+                    value={message}
+                    onChange={e => setMessage(e.target.value)}
+                    rows={4}
+                    required
+                  />
+                </label>
+
+                {sendState === "failed" && (
+                  <p className="piece-detail__error">
+                    {sendError} Or{" "}
+                    <a href={`mailto:${CONTACT_EMAIL}`}>email {CONTACT_EMAIL} directly</a>.
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="piece-detail__enquire"
+                  disabled={sendState === "sending"}
+                >
+                  {sendState === "sending" ? "Sending…" : "Send enquiry"}
+                </button>
+                {/* Buy-now goes here once Stripe Checkout is wired up. Until then
+                    every path — available or not — hands off to an enquiry on purpose. */}
+              </form>
+            )}
           </div>
         </div>
       </div>

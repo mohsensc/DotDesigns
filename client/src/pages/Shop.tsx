@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { loadCatalog } from "../lib/catalog-store";
 import { publicPieces, CATEGORY_LABELS, type Catalog, type Piece, type PieceCategory } from "../lib/catalog";
+import { useDocumentTitle } from "../lib/use-document-title";
 import PieceCard from "../components/PieceCard.tsx";
 import dotGold from "../assets/dot-gold.png";
 import "./Shop.css";
@@ -11,6 +12,7 @@ type Filter = "all" | PieceCategory;
 const CATEGORIES: PieceCategory[] = ["wall-relief", "sculpture", "pottery", "commission"];
 
 export default function Shop() {
+  useDocumentTitle("Shop");
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
 

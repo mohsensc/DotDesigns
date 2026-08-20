@@ -1,10 +1,12 @@
 .piece-detail {
-  --pd-bg: #141210;
-  --pd-ink: #f2ede4;
-  --pd-ink-soft: #a79e8c;
-  --pd-accent: #b19556;
-  --pd-font-display: "Playfair Display", Georgia, "Times New Roman", serif;
-  --pd-font-body: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  /* Aliases onto the house palette in index.css. The shop and the scroll film
+     must not hold separate copies of these hexes — that's how they drift. */
+  --pd-bg: var(--dot-bg);
+  --pd-ink: var(--dot-ink);
+  --pd-ink-soft: var(--dot-ink-soft);
+  --pd-accent: var(--dot-accent);
+  --pd-font-display: var(--dot-font-display);
+  --pd-font-body: var(--dot-font-body);
 
   min-height: 100vh;
   background: var(--pd-bg);
@@ -80,6 +82,13 @@
     color-mix(in srgb, var(--pd-accent) 8%, var(--pd-bg)),
     var(--pd-bg)
   );
+}
+
+.piece-detail__caption {
+  margin: 10px 2px 0;
+  font-family: var(--pd-font-body);
+  font-size: 0.76rem;
+  color: var(--pd-ink-soft);
 }
 
 .piece-detail__thumbs {
@@ -208,12 +217,92 @@
   color: var(--pd-ink);
 }
 
+.piece-detail .scale-figure {
+  margin-top: 28px;
+}
+
 .piece-detail__action {
   margin-top: 34px;
+  padding-top: 28px;
+  border-top: 1px solid color-mix(in srgb, var(--pd-accent) 22%, transparent);
+}
+
+.piece-detail__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 40ch;
+}
+
+.piece-detail__form-title {
+  margin: 0 0 4px;
+  font-family: var(--pd-font-display);
+  font-weight: 500;
+  font-size: 1.15rem;
+}
+
+.piece-detail__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--pd-font-body);
+}
+
+.piece-detail__field span {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pd-ink-soft);
+}
+
+.piece-detail__field input,
+.piece-detail__field textarea {
+  font-family: var(--pd-font-body);
+  font-size: 0.9rem;
+  color: var(--pd-ink);
+  background: color-mix(in srgb, var(--pd-ink) 6%, var(--pd-bg));
+  border: 1px solid color-mix(in srgb, var(--pd-accent) 24%, transparent);
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.piece-detail__field input:focus-visible,
+.piece-detail__field textarea:focus-visible {
+  outline: 1px solid var(--pd-accent);
+  outline-offset: 1px;
+}
+
+/* Off-screen only. It's also aria-hidden and untabbable, so a real visitor
+   never encounters it — only a bot filling every field blindly does. */
+.piece-detail__honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.piece-detail__error {
+  margin: 0;
+  font-family: var(--pd-font-body);
+  font-size: 0.8rem;
+  color: color-mix(in srgb, #e0836b 80%, var(--pd-ink));
+}
+
+.piece-detail__error a {
+  color: var(--pd-accent);
+}
+
+.piece-detail__sent {
+  font-family: var(--pd-font-body);
+  font-size: 0.92rem;
+  color: var(--pd-ink);
 }
 
 .piece-detail__enquire {
   display: inline-block;
+  align-self: flex-start;
   font-family: var(--pd-font-body);
   font-size: 0.78rem;
   letter-spacing: 0.14em;
@@ -221,12 +310,19 @@
   color: var(--pd-bg);
   background: var(--pd-accent);
   padding: 14px 28px;
+  border: none;
+  cursor: pointer;
   text-decoration: none;
   transition: opacity 0.3s ease;
 }
 
 .piece-detail__enquire:hover {
   opacity: 0.85;
+}
+
+.piece-detail__enquire:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .piece-detail__enquire:focus-visible {
