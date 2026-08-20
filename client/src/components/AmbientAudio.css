@@ -1,0 +1,51 @@
+/* Small, quiet sound toggle. Fixed bottom-right, matching the house dark
+   quiet-luxury chrome (near-black ground, gold accent) — see World.css tokens
+   and .dot-brand for the same treatment. */
+.dot-sound {
+  position: fixed;
+  right: clamp(18px, 5vw, 32px);
+  bottom: clamp(18px, 5vw, 32px);
+  z-index: 200; /* above the engine chrome (z-index 50) */
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, #b19556 32%, transparent);
+  background: color-mix(in srgb, #141210 60%, transparent);
+  backdrop-filter: blur(8px);
+  color: #b19556;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.dot-sound:hover,
+.dot-sound:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, #b19556 58%, transparent);
+}
+
+.dot-sound:focus-visible {
+  outline: 2px solid #b19556;
+  outline-offset: 3px;
+}
+
+.dot-sound__icon {
+  width: 18px;
+  height: 18px;
+}
+
+.dot-sound__wave {
+  opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot-sound {
+    transition: none;
+  }
+  .dot-sound:hover,
+  .dot-sound:focus-visible {
+    transform: none;
+  }
+}
