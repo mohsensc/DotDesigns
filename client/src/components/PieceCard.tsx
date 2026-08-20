@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { coverOf, formatPrice, CATEGORY_LABELS, STATUS_LABELS, type Piece } from "../lib/catalog";
+import { coverOf, formatPrice, formatSize, altOf, CATEGORY_LABELS, STATUS_LABELS, type Piece } from "../lib/catalog";
 import { resolveMedia } from "../lib/catalog-store";
 import "./PieceCard.css";
 
@@ -24,12 +24,13 @@ export default function PieceCard({ piece }: { piece: Piece }) {
   }, [cover]);
 
   const sold = piece.status !== "available";
+  const size = formatSize(piece);
 
   return (
     <Link to={`/shop/${piece.slug}`} className={`piece-card${sold ? " piece-card--sold" : ""}`}>
       <div className="piece-card__media">
         {src ? (
-          <img className="piece-card__img" src={src} alt={cover?.alt || piece.title} loading="lazy" />
+          <img className="piece-card__img" src={src} alt={altOf(cover, piece)} loading="lazy" />
         ) : (
           // Two cases land here: a piece with no photo yet, and the brief moment
           // before an async resolve returns. Only the first gets a label — the
@@ -47,6 +48,7 @@ export default function PieceCard({ piece }: { piece: Piece }) {
           {piece.year ? ` · ${piece.year}` : ""}
         </p>
         <p className="piece-card__price">{formatPrice(piece.price)}</p>
+        {size && <p className="piece-card__size">{size}</p>}
       </div>
     </Link>
   );

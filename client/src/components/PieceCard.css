@@ -96,6 +96,14 @@
   color: var(--sh-accent);
 }
 
+.piece-card__size {
+  margin: 4px 0 0;
+  font-family: var(--sh-font-body);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--sh-ink-soft);
+}
+
 .piece-card:focus-visible {
   outline: 1px solid var(--sh-accent);
   outline-offset: 4px;
