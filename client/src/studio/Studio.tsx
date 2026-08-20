@@ -98,9 +98,17 @@ export default function Studio() {
 
   async function handleSavePiece(piece: Piece) {
     const exists = current.pieces.some(p => p.id === piece.id);
+    // The form derives the slug from the title, which two pieces can easily
+    // share ("Untitled piece" twice is enough). The slug is the shop's URL, so a
+    // duplicate would leave the second piece unreachable. Suffix until it's free.
+    const taken = new Set(current.pieces.filter(p => p.id !== piece.id).map(p => p.slug));
+    let slug = piece.slug;
+    for (let n = 2; taken.has(slug); n++) slug = `${piece.slug}-${n}`;
+
+    const saved = { ...piece, slug };
     const nextPieces = exists
-      ? current.pieces.map(p => (p.id === piece.id ? piece : p))
-      : [...current.pieces, piece];
+      ? current.pieces.map(p => (p.id === piece.id ? saved : p))
+      : [...current.pieces, saved];
     await persist({ ...current, pieces: nextPieces });
     setView({ name: "list" });
   }

@@ -206,8 +206,10 @@ export const DEMO_CATALOG: Catalog = {
         "Coil-built and scraped back, then glazed in a matte bone white that pools slightly at the foot. Watertight. One of a short run, each a little different.",
       dimensions: "H 11 in, Ø 7 in",
       materials: "Stoneware, matte glaze",
-      media: [img("m-vessel-1", "/world/materials.webp", "Matte white stoneware vessel")],
-      coverId: "m-vessel-1",
+      // No photo: every still that ships with the build is a wide gallery
+      // interior, and hanging one on a $640 pot looks worse than an empty frame.
+      // The placeholder is honest until real photography goes in through the studio.
+      media: [],
       order: 4,
       createdAt: "2026-03-08T00:00:00.000Z",
     },
@@ -223,8 +225,8 @@ export const DEMO_CATALOG: Catalog = {
       description: "Wheel-thrown, trimmed thin, finished in a grey ash glaze that breaks warm over the rim. Dishwasher safe, though it would rather you didn't.",
       dimensions: "H 4 in, Ø 9 in",
       materials: "Stoneware, ash glaze",
-      media: [img("m-bowl-1", "/world/studio.jpg", "Grey ash-glazed bowl on the worktable")],
-      coverId: "m-bowl-1",
+      media: [], // see Studio Vessel above
+
       order: 5,
       createdAt: "2026-03-30T00:00:00.000Z",
     },

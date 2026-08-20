@@ -61,7 +61,11 @@ const DECK: ScrollWorldConfig = {
   // the film rather than leaving them parked. Cancels itself permanently on
   // any real interaction; the engine arms the countdown once the film is
   // actually visible (see its onReady path), not at mount.
-  autoScroll: { delay: 3000, dwell: 5200 },
+  // dwell is measured start-of-step to start-of-step, and a step is not quick:
+  // stepScale 4 puts each tween at 2.2-4.2s, so 5.2s left barely 1.8s to read a
+  // title and two lines, and the whole film self-finished in 26s. 10.5s leaves
+  // ~6.5s parked on each station, which is the point of stopping there at all.
+  autoScroll: { delay: 3000, dwell: 10500 },
   // Shorter than the deck CTA: this one sits in the topbar next to the nav, and
   // the full sentence is carried by the closing scene's button.
   cta: { label: "Book a consultation", href: deckCta.href },

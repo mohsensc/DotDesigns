@@ -31,7 +31,12 @@ export default function PieceCard({ piece }: { piece: Piece }) {
         {src ? (
           <img className="piece-card__img" src={src} alt={cover?.alt || piece.title} loading="lazy" />
         ) : (
-          <div className="piece-card__placeholder" aria-hidden="true" />
+          // Two cases land here: a piece with no photo yet, and the brief moment
+          // before an async resolve returns. Only the first gets a label — the
+          // second would flash it.
+          <div className="piece-card__placeholder">
+            {!cover && <span className="piece-card__placeholder-note">Photograph coming</span>}
+          </div>
         )}
         {sold && <span className="piece-card__status">{STATUS_LABELS[piece.status]}</span>}
       </div>
