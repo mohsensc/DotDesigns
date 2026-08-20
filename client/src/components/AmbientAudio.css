@@ -11,10 +11,10 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, #b19556 32%, transparent);
-  background: color-mix(in srgb, #141210 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 32%, transparent);
+  background: color-mix(in srgb, var(--dot-bg) 60%, transparent);
   backdrop-filter: blur(8px);
-  color: #b19556;
+  color: var(--dot-accent);
   cursor: pointer;
   padding: 0;
   transition: transform 0.2s ease, border-color 0.2s ease, color 0.2s ease;
@@ -23,11 +23,11 @@
 .dot-sound:hover,
 .dot-sound:focus-visible {
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, #b19556 58%, transparent);
+  border-color: color-mix(in srgb, var(--dot-accent) 58%, transparent);
 }
 
 .dot-sound:focus-visible {
-  outline: 2px solid #b19556;
+  outline: 2px solid var(--dot-accent);
   outline-offset: 3px;
 }
 

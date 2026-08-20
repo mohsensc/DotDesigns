@@ -1,9 +1,29 @@
 :root {
+  /* The house palette — one definition, used by every page.
+     The scroll film, the shop, and the request form each alias these into their
+     own local names (--sw-*, --sh-*, --pd-*). They were previously four separate
+     copies of the same six hex values, which is exactly how two halves of a site
+     drift apart. Change a colour here and it changes everywhere. */
+  --dot-bg: #141210; /* near-black warm charcoal */
+  --dot-bg-raised: #1a1815; /* one step up, for panels that need to separate */
+  --dot-ink: #f2ede4; /* ivory */
+  --dot-ink-soft: #a79e8c; /* muted warm grey */
+  --dot-accent: #b19556; /* gold */
+  --dot-font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+  --dot-font-body: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+
+  /* The editorial Cover page predates the dark theme and still runs cream. */
   --cream-1: #ece7dd;
   --cream-2: #e3ded3;
   --gold: #ad8c4f;
   --ink: #18150f;
   --muted: #4a463e;
+}
+
+/* The dark pages paint the document itself, so overscroll and any gap below the
+   content shows the house ground rather than white. */
+body {
+  background: var(--dot-bg);
 }
 
 *,

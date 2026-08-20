@@ -27,13 +27,13 @@ body::-webkit-scrollbar {
    .sw-root defaults on the container element itself. */
 :root,
 .sw-root {
-  --sw-bg: #141210; /* near-black warm charcoal */
-  --sw-ink: #f2ede4; /* ivory */
-  --sw-ink-soft: #a79e8c; /* muted warm grey */
-  --sw-accent: #b19556; /* gold */
-  --sw-font-display: "Playfair Display", Georgia, "Times New Roman", serif;
-  --sw-font-body: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    system-ui, sans-serif;
+  /* Aliases onto the house palette in index.css — don't re-hardcode the hexes. */
+  --sw-bg: var(--dot-bg);
+  --sw-ink: var(--dot-ink);
+  --sw-ink-soft: var(--dot-ink-soft);
+  --sw-accent: var(--dot-accent);
+  --sw-font-display: var(--dot-font-display);
+  --sw-font-body: var(--dot-font-body);
 }
 
 /* Neutralise the engine's placeholder brand (a CSS-drawn gradient mark + name)
@@ -50,14 +50,14 @@ body::-webkit-scrollbar {
 
 .sw-root .sw-topcta {
   background: var(--sw-accent);
-  color: #141210;
+  color: var(--dot-bg);
 }
 
 /* The nav floats over scenes that swing from near-black (the hall) to almost
    white (the studio, the worktable). A near-transparent pill leaves the labels
    unreadable on the bright ones, so the pill carries its own dark ground. */
 .sw-root .sw-nav {
-  background: color-mix(in srgb, #141210 58%, transparent);
+  background: color-mix(in srgb, var(--dot-bg) 58%, transparent);
   border-color: color-mix(in srgb, var(--sw-accent) 30%, transparent);
 }
 .sw-root .sw-nav__item {
@@ -67,7 +67,7 @@ body::-webkit-scrollbar {
   color: var(--sw-ink);
 }
 .sw-root .sw-nav__item.is-active {
-  color: #141210;
+  color: var(--dot-bg);
 }
 
 /* The engine's scrim is a light-mode gradient tuned for a pale scene behind
@@ -115,7 +115,7 @@ body::-webkit-scrollbar {
 }
 
 .sw-root .sw-copy__tags li {
-  background: color-mix(in srgb, var(--sw-accent) 12%, #141210);
+  background: color-mix(in srgb, var(--sw-accent) 12%, var(--dot-bg));
   color: color-mix(in srgb, var(--sw-accent) 82%, #ffffff);
   border-color: color-mix(in srgb, var(--sw-accent) 34%, transparent);
 }
@@ -128,7 +128,7 @@ body::-webkit-scrollbar {
 
 .sw-root .sw-btn--primary {
   background: var(--sw-accent);
-  color: #141210;
+  color: var(--dot-bg);
 }
 
 /* Soften the atmosphere glow: the engine default paints a bright white core

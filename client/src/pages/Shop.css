@@ -1,10 +1,12 @@
 .shop {
-  --sh-bg: #141210;
-  --sh-ink: #f2ede4;
-  --sh-ink-soft: #a79e8c;
-  --sh-accent: #b19556;
-  --sh-font-display: "Playfair Display", Georgia, "Times New Roman", serif;
-  --sh-font-body: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  /* Aliases onto the house palette in index.css. The shop and the scroll film
+     must not hold separate copies of these hexes — that's how they drift. */
+  --sh-bg: var(--dot-bg);
+  --sh-ink: var(--dot-ink);
+  --sh-ink-soft: var(--dot-ink-soft);
+  --sh-accent: var(--dot-accent);
+  --sh-font-display: var(--dot-font-display);
+  --sh-font-body: var(--dot-font-body);
 
   min-height: 100vh;
   background: var(--sh-bg);
