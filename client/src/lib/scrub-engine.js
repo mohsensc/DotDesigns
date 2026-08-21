@@ -108,6 +108,22 @@ function mountScrollWorld(container, config) {
   injectCSS();
   container.classList.add('sw-root');
 
+  // ---- teardown bookkeeping -------------------------------------------------
+  // Every listener the engine puts on the window, plus its timers and frame
+  // loops, are registered here so destroy() can take them all back.
+  //
+  // This matters in a single-page app. The engine's listeners are global, but
+  // its DOM is not: routing away unmounts the container while the listeners
+  // survive, and the snap magnet then keeps yanking the *next* page's scroll
+  // position onto a station that no longer exists. Anything long-lived added
+  // below goes through on()/track() so it can't be forgotten here.
+  let destroyed = false;
+  const bound = [];
+  function on(target, type, handler, opts) {
+    target.addEventListener(type, handler, opts);
+    bound.push(() => target.removeEventListener(type, handler, opts));
+  }
+
   // ---- build the interleaved segment chain: dive0, conn0, dive1, … diveN-1 ----
   const SEGMENTS = [];
   SECTIONS.forEach((s, i) => {
@@ -379,7 +395,7 @@ function mountScrollWorld(container, config) {
   }
   if (!autoCancelled) {
     ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(evt =>
-      window.addEventListener(evt, cancelAutoScroll, { passive: true })
+      on(window, evt, cancelAutoScroll, { passive: true })
     );
   }
 
@@ -461,6 +477,7 @@ function mountScrollWorld(container, config) {
   }
 
   function read() {
+    if (destroyed) return;
     const y = window.scrollY || window.pageYOffset;
     const fade = CROSSFADE * vh;
     let ci = 0;
@@ -545,6 +562,7 @@ function mountScrollWorld(container, config) {
   }
 
   function raf() {
+    if (destroyed) return;   // stop rescheduling; nothing left to scrub
     const eps = isMobile() ? 0.02 : 0.008;   // coarser seek step on phones = fewer decodes
     for (let i = 0; i < NSEG; i++) {
       const s = SEGMENTS[i];
@@ -581,12 +599,13 @@ function mountScrollWorld(container, config) {
     userReady = true;
     SEGMENTS.forEach(s => primeVideo(s.video));
   }
-  window.addEventListener('pointerdown', onFirstGesture, { once: true, passive: true });
-  window.addEventListener('touchstart', onFirstGesture, { once: true, passive: true });
+  on(window, 'pointerdown', onFirstGesture, { once: true, passive: true });
+  on(window, 'touchstart', onFirstGesture, { once: true, passive: true });
 
   // Particles are a per-frame cost we can't afford alongside video scrubbing on a phone.
   seedParticles(particles, reduce || coarse);
-  window.addEventListener('scroll', () => {
+  function onScroll() {
+    if (destroyed) return;
     if (!ticking) { ticking = true; requestAnimationFrame(read); }
     // The magnet. Scrolling itself is native and free — the wheel and the finger
     // drive the camera one to one — and only when it stops does the page ease onto
@@ -606,7 +625,8 @@ function mountScrollWorld(container, config) {
         if (d > 2) tweenTo(s, Math.min(1520, Math.max(640, (d / vh) * 1800)));
       }, 140);
     }
-  }, { passive: true });
+  }
+  on(window, 'scroll', onScroll, { passive: true });
   // Mobile browsers fire `resize` every time the URL bar slides in/out. Re-running
   // layout() there rebuilds the track height and yanks the scroll position, so on
   // touch we ignore height-only changes and only relayout when the width actually
@@ -616,9 +636,9 @@ function mountScrollWorld(container, config) {
     if (coarse && window.innerWidth === laidOutW) return;
     layout();
   }
-  window.addEventListener('resize', onResize);
-  window.addEventListener('orientationchange', layout);
-  window.addEventListener('load', layout);
+  on(window, 'resize', onResize);
+  on(window, 'orientationchange', layout);
+  on(window, 'load', layout);
 
   // ---- station navigation --------------------------------------------------
   // Scrolling stays native: the wheel and the finger drive the camera directly,
@@ -630,7 +650,7 @@ function mountScrollWorld(container, config) {
   // Keys are the exception: an arrow or a page key is a discrete request, so it
   // steps station to station.
   if (SNAP) {
-    window.addEventListener('keydown', e => {
+    on(window, 'keydown', e => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return;
@@ -647,6 +667,34 @@ function mountScrollWorld(container, config) {
   // scrub. The host page holds its loading screen until onReady fires.
   if (PRELOAD) SEGMENTS.forEach(loadClip);
   requestAnimationFrame(raf);
+
+  // Hand the caller a way out. A single-page app MUST call this when it unmounts
+  // the container: the listeners above are on the window, so without it the snap
+  // magnet and the key handler keep running on whatever page comes next.
+  function destroy() {
+    if (destroyed) return;
+    destroyed = true;
+    bound.forEach(off => off());
+    bound.length = 0;
+    cancelAutoScroll();
+    clearTimeout(settleTimer);
+    tween = null;                // in-flight tweenTo checks this and bails
+    // Release the decoders and the blob URLs; the container's DOM is about to go.
+    SEGMENTS.forEach(s => {
+      const v = s.video;
+      if (!v) return;
+      try {
+        v.pause();
+        if (v.src && v.src.startsWith('blob:')) URL.revokeObjectURL(v.src);
+        v.removeAttribute('src');
+        v.load();
+      } catch (e) {}
+    });
+    blobCache.clear();
+    container.innerHTML = '';
+    container.classList.remove('sw-root');
+  }
+  return { destroy };
 
   // ---- helpers ----
   function el(tag, cls) { const n = document.createElement(tag); if (cls) n.className = cls; return n; }

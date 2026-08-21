@@ -200,10 +200,10 @@ export default function World() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    // The engine exposes no destroy handle and builds its DOM + installs global
-    // scroll/resize listeners imperatively. React 18 StrictMode (dev) mounts
-    // effects twice; a dataset flag makes the mount idempotent so we never
-    // build the world twice into the same container.
+    // The engine builds its DOM and installs global scroll/resize listeners
+    // imperatively. React 18 StrictMode (dev) mounts effects twice; a dataset
+    // flag makes the mount idempotent so we never build the world twice into
+    // the same container. The cleanup below clears it again.
     if (container.dataset.swMounted === "true") return;
     if (typeof window.mountScrollWorld !== "function") return;
     container.dataset.swMounted = "true";
@@ -214,6 +214,9 @@ export default function World() {
     const html = document.documentElement;
     const prevOverflow = html.style.overflow;
     html.style.overflow = "hidden";
+    // Marks the document as "the film owns the scroll" — World.css hangs the
+    // hidden-scrollbar rules off this so they don't reach the other routes.
+    html.classList.add("dot-world");
 
     // Idempotent: onReady and the stall timer race, and either may fire twice
     // across a StrictMode remount.
@@ -230,7 +233,7 @@ export default function World() {
     // and keep loading in the background.
     const stall = window.setTimeout(reveal, 30000);
 
-    window.mountScrollWorld(container, {
+    const world = window.mountScrollWorld(container, {
       ...DECK,
       onProgress: (settled, total) => setProgress(total ? settled / total : 1),
       onReady: () => {
@@ -238,8 +241,20 @@ export default function World() {
         reveal();
       },
     });
-    // No cleanup: the engine returns nothing to tear down. The mount-once guard
-    // above is the intended safeguard per the engine's design.
+
+    // Routing to /shop unmounts this component but the engine's listeners live
+    // on the window, so without this the snap magnet keeps pulling the shop's
+    // scroll position onto a station from a page that isn't on screen any more.
+    return () => {
+      window.clearTimeout(stall);
+      world?.destroy();
+      // The gate may still be up if they left mid-preload; don't strand the
+      // document with overflow hidden.
+      html.style.overflow = prevOverflow;
+      html.classList.remove("dot-world");
+      revealed.current = false;
+      delete container.dataset.swMounted;
+    };
   }, []);
 
   return (

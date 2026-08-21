@@ -11,12 +11,16 @@
    between stations. A native scrollbar is therefore both meaningless here and the
    one remaining way to drag the camera through a flight by hand, so hide it. The
    page still scrolls — programmatically, and via wheel/touch/keys. */
-html {
+/* Scoped to the class World.tsx puts on <html> while the film is mounted. This
+   stylesheet is bundled for the whole app, so an unscoped rule here also stripped
+   the scrollbar off the shop — where the scrollbar is just a scrollbar and people
+   expect to be able to grab it. */
+html.dot-world {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* legacy Edge */
 }
-html::-webkit-scrollbar,
-body::-webkit-scrollbar {
+html.dot-world::-webkit-scrollbar,
+html.dot-world body::-webkit-scrollbar {
   width: 0;
   height: 0;
   display: none;
