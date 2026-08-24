@@ -7,17 +7,31 @@ payment completes.
 
 ## Env vars (set by hand on Vercel, not in this repo)
 
-- `STRIPE_KEY` — secret key, used to create Checkout sessions.
-- `STRIPE_WEBHOOK_SECRET` — signing secret for the webhook endpoint below.
+- `STRIPE_KEY` — the SECRET key (`sk_...`), used to create Checkout sessions.
+  Not the publishable key. The publishable key isn't used anywhere here: the
+  browser only ever gets redirected to Stripe's hosted page, so no Stripe.js
+  runs on our side and there's nothing for a `pk_...` to do.
+- `STRIPE_WEBHOOK_SECRET` — the signing secret (`whsec_...`). This is NOT one
+  of the two API keys; it only exists once you create the webhook endpoint
+  below.
 
 Both required with no fallback. Missing either fails closed (500, nothing
-sent).
+sent). Test and live mode have separate keys AND separate webhook secrets —
+a live `whsec_` will not verify a test-mode event.
 
 ## Registering the webhook
 
 In the Stripe dashboard: Developers -> Webhooks -> Add endpoint. Point it at
-`<your-deployment>/api/stripe-webhook`, subscribe to `checkout.session.completed`.
-Stripe shows the signing secret once, at creation — that's
+`https://dotdesigns.art/api/stripe-webhook` and subscribe to BOTH:
+
+- `checkout.session.completed`
+- `checkout.session.async_payment_succeeded`
+
+The second one matters. The handler refuses to move stock for a session that
+isn't paid yet, so a payment method that settles later would never decrement
+if only the first event were registered.
+
+Reveal the endpoint's signing secret afterwards — that's
 `STRIPE_WEBHOOK_SECRET`.
 
 ## Testing locally

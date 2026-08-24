@@ -100,16 +100,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  if (event.type !== "checkout.session.completed") {
-    // Not a sale — ack it so Stripe stops sending it, do nothing else.
+  // Two events can mean "this piece sold", and both have to be registered in
+  // Stripe or stock silently stops moving:
+  //   completed              — the normal card case, already paid on arrival
+  //   async_payment_succeeded — a delayed method that cleared afterwards
+  // Listening only to `completed` while also (correctly) refusing to act on
+  // unpaid sessions would mean an async sale never decrements at all.
+  if (
+    event.type !== "checkout.session.completed" &&
+    event.type !== "checkout.session.async_payment_succeeded"
+  ) {
+    // Not a sale — ack it so Stripe stops retrying, do nothing else.
     res.status(200).json({ ok: true });
     return;
   }
 
-  // completed does NOT mean paid. Payment methods that settle asynchronously
-  // fire this event with payment_status "unpaid" and confirm later, so acting
-  // on completed alone would mark a piece sold out before any money arrived —
-  // and if the payment then failed, nothing would put the stock back.
+  // completed does NOT mean paid. A method that settles asynchronously fires
+  // completed with payment_status "unpaid" and confirms later, so acting on
+  // the event alone would mark a piece sold out before any money arrived — and
+  // if the payment then failed, nothing would put the stock back. The
+  // async_payment_succeeded event above is what closes that loop.
   const paymentStatus = event.data?.object?.payment_status;
   if (paymentStatus !== "paid" && paymentStatus !== "no_payment_required") {
     res.status(200).json({ ok: true });
