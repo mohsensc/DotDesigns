@@ -104,6 +104,15 @@
   color: var(--sh-ink-soft);
 }
 
+.piece-card__low-stock {
+  margin: 8px 0 0;
+  font-family: var(--sh-font-body);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sh-accent);
+}
+
 .piece-card:focus-visible {
   outline: 1px solid var(--sh-accent);
   outline-offset: 4px;

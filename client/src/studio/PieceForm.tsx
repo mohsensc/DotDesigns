@@ -20,8 +20,10 @@ import { newId, slugify } from "./util.ts";
 
 type Props = {
   piece: Piece;
-  onSave: (piece: Piece) => void;
+  onSave: (piece: Piece, quantity: number, notes: string) => void;
   onCancel: () => void;
+  /** Fires as soon as a spreadsheet URL is known, even before the first save. */
+  onSheetUrl?: (url: string) => void;
 };
 
 // A video this big is unlikely to fit in IndexedDB alongside everything
@@ -49,7 +51,7 @@ function computeSize(unit: SizeUnit, h: string, l: string, d: string, hasDepth: 
 
 // One form for both "add a piece" and "edit a piece" — the caller decides
 // which by what it passes in as `piece`.
-export default function PieceForm({ piece, onSave, onCancel }: Props) {
+export default function PieceForm({ piece, onSave, onCancel, onSheetUrl }: Props) {
   const [draft, setDraft] = useState<Piece>(piece);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [mediaPendingDelete, setMediaPendingDelete] = useState<MediaRef | null>(null);
@@ -64,6 +66,34 @@ export default function PieceForm({ piece, onSave, onCancel }: Props) {
   const [lengthStr, setLengthStr] = useState(piece.size?.length != null ? String(piece.size.length) : "");
   const [depthStr, setDepthStr] = useState(piece.size?.depth != null ? String(piece.size.depth) : "");
   const [hasDepth, setHasDepth] = useState(piece.size?.depth != null);
+
+  // Quantity and sheet notes don't live on Piece — they live in the sheet
+  // itself. Default to "1 and blank" for a new piece; for an existing one
+  // we fetch the real values below so a save here can't stomp a count Hajar
+  // just typed directly into the sheet.
+  const [quantityStr, setQuantityStr] = useState("1");
+  const [notes, setNotes] = useState("");
+  const [sheetPrefillFailed, setSheetPrefillFailed] = useState(false);
+
+  useEffect(() => {
+    if (!piece.slug) return; // new piece — nothing in the sheet to fetch yet
+    let cancelled = false;
+    fetch(`/api/studio-sheet?slug=${encodeURIComponent(piece.slug)}`)
+      .then(res => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data: { quantity?: number | null; notes?: string; url?: string }) => {
+        if (cancelled) return;
+        if (typeof data.quantity === "number") setQuantityStr(String(data.quantity));
+        if (typeof data.notes === "string") setNotes(data.notes);
+        if (typeof data.url === "string") onSheetUrl?.(data.url);
+      })
+      .catch(() => {
+        if (!cancelled) setSheetPrefillFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [piece.slug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -196,7 +226,12 @@ export default function PieceForm({ piece, onSave, onCancel }: Props) {
   function handleSubmit() {
     const title = draft.title.trim() || "Untitled piece";
     const slug = draft.slug || slugify(title);
-    onSave({ ...draft, title, slug });
+    // An empty or unparseable field means "she didn't mean to change this",
+    // not "zero" — 0 is the one value with a public consequence (sold out),
+    // so it should only ever come from her actually typing it.
+    const parsedQuantity = parseInt(quantityStr, 10);
+    const quantity = Number.isFinite(parsedQuantity) ? Math.max(0, parsedQuantity) : 1;
+    onSave({ ...draft, title, slug }, quantity, notes);
   }
 
   return (
@@ -239,6 +274,27 @@ export default function PieceForm({ piece, onSave, onCancel }: Props) {
           </label>
         </div>
         <p className="field-hint">Typical range: {priceHint}</p>
+
+        <label className="field">
+          <span>How many do you have?</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            value={quantityStr}
+            onChange={e => setQuantityStr(e.target.value)}
+          />
+        </label>
+        <p className="field-hint">
+          This is the number in your inventory sheet. 0 means the website shows this piece as sold out.
+        </p>
+        {sheetPrefillFailed && (
+          <p className="field-hint field-hint-warn">
+            Couldn't check your inventory sheet — saving now will overwrite the count and any notes there
+            with what's shown here.
+          </p>
+        )}
 
         <div className="field-row">
           <label className="field">

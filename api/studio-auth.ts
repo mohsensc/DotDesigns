@@ -1,37 +1,18 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import {
+  STUDIO_COOKIE_MAX_AGE,
+  STUDIO_COOKIE_NAME,
+  expectedStudioToken,
+  readCookie,
+  safeEqual,
+} from "./_lib/studio-session";
 
 // Single security control for the studio: one password, in the Vercel env var
 // PASSWORD, never in this codebase. If it isn't set, this fails closed — no
 // path in here authenticates anyone without it.
 //
-// The cookie doesn't hold the password. It holds an HMAC of a fixed label,
-// keyed by PASSWORD — a token that only a server holding PASSWORD could have
-// produced, so it can't be forged by copying an old cookie value around.
-const COOKIE_NAME = "dot_studio_auth";
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
-
-function expectedToken(password: string): string {
-  return createHmac("sha256", password).update("dot-studio-session").digest("hex");
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
-
-function readCookie(req: VercelRequest, name: string): string | undefined {
-  const header = req.headers.cookie;
-  if (!header) return undefined;
-  for (const part of header.split(";")) {
-    const idx = part.indexOf("=");
-    if (idx === -1) continue;
-    if (part.slice(0, idx).trim() === name) return decodeURIComponent(part.slice(idx + 1).trim());
-  }
-  return undefined;
-}
+// The HMAC/cookie mechanics live in api/_lib/studio-session.ts so other
+// endpoints can check "is this request unlocked" too.
 
 function readPassword(req: VercelRequest): string {
   const body = req.body;
@@ -58,8 +39,8 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "GET") {
-    const cookie = readCookie(req, COOKIE_NAME);
-    const unlocked = !!cookie && safeEqual(cookie, expectedToken(password));
+    const cookie = readCookie(req, STUDIO_COOKIE_NAME);
+    const unlocked = !!cookie && safeEqual(cookie, expectedStudioToken(password));
     res.status(200).json({ unlocked });
     return;
   }
@@ -70,10 +51,10 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       res.status(401).json({ error: "Wrong password." });
       return;
     }
-    const token = expectedToken(password);
+    const token = expectedStudioToken(password);
     res.setHeader(
       "Set-Cookie",
-      `${COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${COOKIE_MAX_AGE}`,
+      `${STUDIO_COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${STUDIO_COOKIE_MAX_AGE}`,
     );
     res.status(200).json({ unlocked: true });
     return;

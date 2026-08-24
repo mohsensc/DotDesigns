@@ -167,6 +167,27 @@ button, input, select, textarea {
   margin-bottom: 16px;
 }
 
+.sheet-sync-line {
+  font-size: 14px;
+  color: var(--studio-ink-soft);
+  margin: -8px 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sheet-sync-error {
+  color: var(--studio-danger);
+}
+
+.sheet-link {
+  display: inline-block;
+  font-size: 14px;
+  color: var(--studio-accent);
+  margin: -8px 0 16px;
+}
+
 /* ---- buttons ---- */
 
 .btn {
@@ -432,6 +453,10 @@ button, input, select, textarea {
   font-size: 13px;
   color: var(--studio-ink-soft);
   margin: -8px 0 0;
+}
+
+.field-hint-warn {
+  color: var(--studio-danger);
 }
 
 .toggle-field {
