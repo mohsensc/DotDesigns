@@ -11,12 +11,16 @@
    between stations. A native scrollbar is therefore both meaningless here and the
    one remaining way to drag the camera through a flight by hand, so hide it. The
    page still scrolls — programmatically, and via wheel/touch/keys. */
-html {
+/* Scoped to the class World.tsx puts on <html> while the film is mounted. This
+   stylesheet is bundled for the whole app, so an unscoped rule here also stripped
+   the scrollbar off the shop — where the scrollbar is just a scrollbar and people
+   expect to be able to grab it. */
+html.dot-world {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* legacy Edge */
 }
-html::-webkit-scrollbar,
-body::-webkit-scrollbar {
+html.dot-world::-webkit-scrollbar,
+html.dot-world body::-webkit-scrollbar {
   width: 0;
   height: 0;
   display: none;
@@ -158,43 +162,46 @@ body::-webkit-scrollbar {
   /* used untouched — no filters, no recolour */
 }
 
-/* The Shop link is overlaid rather than injected into the engine's topbar, but
-   the topbar ends in the "Book a consultation" button at the same right edge, so
-   an overlay alone lands on top of it. Reserve the pill's width (plus a gap) as
-   extra topbar padding: space-between then pushes the engine's CTA left by
-   exactly that much, and the pill drops into the gap it just made.
-   --dot-shop-w is a measured constant — retune it if the label changes. */
+/* The Shop link is portalled into the engine's topbar (see World.tsx), so it's
+   a real flex child of that row. The topbar is space-between, which with a
+   fourth child would strand the nav off-centre — so lay it out explicitly
+   instead: brand pinned left, nav absorbing the free space either side, then the
+   CTA and Shop travelling together at the right on the topbar's own 16px gap.
+   That's what keeps the three of them on one line without hand-tuned offsets. */
 .sw-root .sw-topbar {
-  --dot-shop-w: 104px;
-  padding-right: calc(clamp(18px, 5vw, 64px) + var(--dot-shop-w) + 12px);
+  justify-content: flex-start;
 }
+.sw-root .sw-nav {
+  margin-inline: auto;
+}
+/* Exactly one auto margin pair, on the nav. Auto margins swallow all the free
+   space before justify-content gets a look in, so a second pair elsewhere would
+   split the slack three ways and drag the nav off centre. */
 
 .dot-shop {
-  position: fixed;
-  top: clamp(12px, 2vw, 20px);
-  right: clamp(18px, 5vw, 64px);
-  z-index: 200;
-  width: 104px;
-  text-align: center;
-  box-sizing: border-box;
+  flex: 0 0 auto;
   font-family: var(--sw-font-body);
-  font-size: 0.78rem;
+  /* Matches .sw-topcta's metrics so the two pills are the same height and sit
+     on the same baseline; only the fill differs, since Shop is the quieter of
+     the two actions. */
+  font-size: 0.9rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  white-space: nowrap;
   color: var(--sw-ink);
   text-decoration: none;
-  padding: 10px 18px;
+  /* 9px not the CTA's 10px: this pill carries a 1px border the CTA doesn't, so
+     the shorter padding lands both at the same 41px. */
+  padding: 9px 20px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--sw-accent) 34%, transparent);
-  background: color-mix(in srgb, var(--sw-bg) 58%, transparent);
-  backdrop-filter: blur(8px);
-  transition: color 0.2s ease, border-color 0.2s ease;
+  border: 1px solid color-mix(in srgb, var(--sw-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--sw-bg) 55%, transparent);
+  backdrop-filter: blur(10px);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 .dot-shop:hover,
 .dot-shop:focus-visible {
   color: var(--sw-accent);
-  border-color: color-mix(in srgb, var(--sw-accent) 60%, transparent);
+  border-color: color-mix(in srgb, var(--sw-accent) 70%, transparent);
 }
 
 /* On a phone the topbar can't hold the brand spacer, the engine's CTA and the
@@ -206,16 +213,15 @@ body::-webkit-scrollbar {
   .sw-root .sw-topcta {
     display: none;
   }
-  .sw-root .sw-topbar {
-    padding-right: clamp(18px, 5vw, 64px);
-  }
   .sw-root .sw-brand {
     width: 0;
   }
+  /* Nav and CTA are both gone at this width, taking the only auto margin with
+     them, so Shop has to push itself to the right edge. */
   .dot-shop {
-    width: auto;
-    font-size: 0.72rem;
-    padding: 8px 14px;
+    margin-left: auto;
+    font-size: 0.82rem;
+    padding: 9px 16px;
   }
 }
 

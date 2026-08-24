@@ -106,11 +106,22 @@ export interface ScrollWorldConfig {
   autoScroll?: { delay?: number; dwell?: number };
 }
 
+/**
+ * Returned by mountScrollWorld. `destroy()` removes every window listener the
+ * engine installed and stops its timers and frame loops. A single-page app has
+ * to call it on unmount: the listeners are global but the container isn't, so
+ * skipping it leaves the snap magnet driving the scroll on the next route.
+ * Safe to call more than once.
+ */
+export interface ScrollWorldHandle {
+  destroy: () => void;
+}
+
 declare global {
   interface Window {
     mountScrollWorld?: (
       container: HTMLElement,
       config: ScrollWorldConfig,
-    ) => void;
+    ) => ScrollWorldHandle | undefined;
   }
 }

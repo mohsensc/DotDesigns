@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import type { ScrollWorldConfig } from "../lib/scrub-engine";
 // Side-effect import: the engine assigns window.mountScrollWorld at import time.
@@ -195,15 +196,18 @@ export default function World() {
   const containerRef = useRef<HTMLDivElement>(null);
   const revealed = useRef(false);
   const [ready, setReady] = useState(false);
+  // The engine builds its own topbar; the Shop link is portalled into it once
+  // it exists, so it participates in that flex row instead of floating over it.
+  const [topbar, setTopbar] = useState<HTMLElement | null>(null);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    // The engine exposes no destroy handle and builds its DOM + installs global
-    // scroll/resize listeners imperatively. React 18 StrictMode (dev) mounts
-    // effects twice; a dataset flag makes the mount idempotent so we never
-    // build the world twice into the same container.
+    // The engine builds its DOM and installs global scroll/resize listeners
+    // imperatively. React 18 StrictMode (dev) mounts effects twice; a dataset
+    // flag makes the mount idempotent so we never build the world twice into
+    // the same container. The cleanup below clears it again.
     if (container.dataset.swMounted === "true") return;
     if (typeof window.mountScrollWorld !== "function") return;
     container.dataset.swMounted = "true";
@@ -214,6 +218,9 @@ export default function World() {
     const html = document.documentElement;
     const prevOverflow = html.style.overflow;
     html.style.overflow = "hidden";
+    // Marks the document as "the film owns the scroll" — World.css hangs the
+    // hidden-scrollbar rules off this so they don't reach the other routes.
+    html.classList.add("dot-world");
 
     // Idempotent: onReady and the stall timer race, and either may fire twice
     // across a StrictMode remount.
@@ -230,7 +237,7 @@ export default function World() {
     // and keep loading in the background.
     const stall = window.setTimeout(reveal, 30000);
 
-    window.mountScrollWorld(container, {
+    const world = window.mountScrollWorld(container, {
       ...DECK,
       onProgress: (settled, total) => setProgress(total ? settled / total : 1),
       onReady: () => {
@@ -238,8 +245,22 @@ export default function World() {
         reveal();
       },
     });
-    // No cleanup: the engine returns nothing to tear down. The mount-once guard
-    // above is the intended safeguard per the engine's design.
+    setTopbar(container.querySelector<HTMLElement>(".sw-topbar"));
+
+    // Routing to /shop unmounts this component but the engine's listeners live
+    // on the window, so without this the snap magnet keeps pulling the shop's
+    // scroll position onto a station from a page that isn't on screen any more.
+    return () => {
+      window.clearTimeout(stall);
+      world?.destroy();
+      // The gate may still be up if they left mid-preload; don't strand the
+      // document with overflow hidden.
+      html.style.overflow = prevOverflow;
+      html.classList.remove("dot-world");
+      setTopbar(null);
+      revealed.current = false;
+      delete container.dataset.swMounted;
+    };
   }, []);
 
   return (
@@ -252,11 +273,17 @@ export default function World() {
       <div className="dot-brand" aria-label={`DOT Designs: ${brandLine}`}>
         <img className="dot-brand__logo" src={dotGold} alt="DOT Designs" />
       </div>
-      {/* Overlaid the same way as .dot-brand, top-right so it clears the logo.
-          A plain route link, not engine nav — the engine's nav is left alone. */}
-      <Link to="/shop" className="dot-shop">
-        Shop
-      </Link>
+      {/* Portalled into the engine's own topbar rather than floated over it, so
+          it's a real flex child and lines up with the nav and the CTA by itself.
+          Floating it meant hand-matching their vertical offset and reserving
+          width in the topbar's padding, which drifted the moment either moved. */}
+      {topbar &&
+        createPortal(
+          <Link to="/shop" className="dot-shop">
+            Shop
+          </Link>,
+          topbar,
+        )}
       <div ref={containerRef} className="dot-world" />
       <AmbientAudio />
 
