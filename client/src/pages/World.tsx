@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import type { ScrollWorldConfig } from "../lib/scrub-engine";
 // Side-effect import: the engine assigns window.mountScrollWorld at import time.
@@ -195,6 +196,9 @@ export default function World() {
   const containerRef = useRef<HTMLDivElement>(null);
   const revealed = useRef(false);
   const [ready, setReady] = useState(false);
+  // The engine builds its own topbar; the Shop link is portalled into it once
+  // it exists, so it participates in that flex row instead of floating over it.
+  const [topbar, setTopbar] = useState<HTMLElement | null>(null);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
@@ -241,6 +245,7 @@ export default function World() {
         reveal();
       },
     });
+    setTopbar(container.querySelector<HTMLElement>(".sw-topbar"));
 
     // Routing to /shop unmounts this component but the engine's listeners live
     // on the window, so without this the snap magnet keeps pulling the shop's
@@ -252,6 +257,7 @@ export default function World() {
       // document with overflow hidden.
       html.style.overflow = prevOverflow;
       html.classList.remove("dot-world");
+      setTopbar(null);
       revealed.current = false;
       delete container.dataset.swMounted;
     };
@@ -267,11 +273,17 @@ export default function World() {
       <div className="dot-brand" aria-label={`DOT Designs: ${brandLine}`}>
         <img className="dot-brand__logo" src={dotGold} alt="DOT Designs" />
       </div>
-      {/* Overlaid the same way as .dot-brand, top-right so it clears the logo.
-          A plain route link, not engine nav — the engine's nav is left alone. */}
-      <Link to="/shop" className="dot-shop">
-        Shop
-      </Link>
+      {/* Portalled into the engine's own topbar rather than floated over it, so
+          it's a real flex child and lines up with the nav and the CTA by itself.
+          Floating it meant hand-matching their vertical offset and reserving
+          width in the topbar's padding, which drifted the moment either moved. */}
+      {topbar &&
+        createPortal(
+          <Link to="/shop" className="dot-shop">
+            Shop
+          </Link>,
+          topbar,
+        )}
       <div ref={containerRef} className="dot-world" />
       <AmbientAudio />
 
