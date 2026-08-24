@@ -2,20 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { DEMO_CATALOG, type Catalog, type Piece, type PieceStatus } from "../lib/catalog.ts";
 import { exportCatalog, importCatalog, loadCatalog, resetCatalog, saveCatalog } from "../lib/catalog-store.ts";
 import ConfirmDialog from "./ConfirmDialog.tsx";
+import InventoryTable from "./InventoryTable.tsx";
 import LockScreen from "./LockScreen.tsx";
 import PieceForm from "./PieceForm.tsx";
 import PieceList from "./PieceList.tsx";
 import { newId, slugify } from "./util.ts";
 
-type View = { name: "list" } | { name: "edit"; pieceId: string | null };
+type View = { name: "list" } | { name: "edit"; pieceId: string | null } | { name: "inventory" };
 
-type SheetSyncState =
+type InventorySyncState =
   | { status: "idle" }
   | { status: "sending" }
   | { status: "ok" }
   | { status: "error"; message: string };
 
-type SheetPayload = { piece: Piece; quantity: number; notes: string };
+type InventoryPayload = { piece: Piece; quantity: number; notes: string };
 
 function blankPiece(nextOrder: number): Piece {
   return {
@@ -41,9 +42,8 @@ export default function Studio() {
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [sheetSync, setSheetSync] = useState<SheetSyncState>({ status: "idle" });
-  const [sheetRetry, setSheetRetry] = useState<SheetPayload | null>(null);
-  const [sheetUrl, setSheetUrl] = useState<string | null>(null);
+  const [inventorySync, setInventorySync] = useState<InventorySyncState>({ status: "idle" });
+  const [inventoryRetry, setInventoryRetry] = useState<InventoryPayload | null>(null);
 
   useEffect(() => {
     fetch("/api/studio-auth")
@@ -72,12 +72,12 @@ export default function Studio() {
   }
 
   function handleAddNew() {
-    setSheetSync({ status: "idle" });
+    setInventorySync({ status: "idle" });
     setView({ name: "edit", pieceId: null });
   }
 
   function handleEdit(id: string) {
-    setSheetSync({ status: "idle" });
+    setInventorySync({ status: "idle" });
     setView({ name: "edit", pieceId: id });
   }
 
@@ -109,11 +109,17 @@ export default function Studio() {
     const nextPieces = current.pieces.map(p => (p.id === id ? saved : p));
     await persist({ ...current, pieces: nextPieces });
 
-    // The sheet's quantity is what the live site reads, and it wins over this
-    // status once a piece has a row there. Flipping the toggle without writing
-    // the quantity across would leave her looking at "Sold" in here while the
-    // shop happily kept selling it. Sold means none left; back in stock means one.
-    void syncToSheet({ piece: saved, quantity: nextStatus === "sold" ? 0 : 1, notes: "" });
+    // The server's quantity is what the live site reads, and it wins over this
+    // status once a piece is in the inventory. Flipping the toggle without
+    // writing the quantity across would leave her looking at "Sold" in here
+    // while the shop happily kept selling it. Sold means none left; back in
+    // stock means one. Carry over whatever notes are already there — this
+    // toggle has no notes field of its own, and a blank POST would erase them.
+    const existingNotes = await fetch(`/api/studio-inventory?slug=${encodeURIComponent(saved.slug)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then((data: { row?: { notes?: string } | null } | null) => data?.row?.notes ?? "")
+      .catch(() => "");
+    void syncToInventory({ piece: saved, quantity: nextStatus === "sold" ? 0 : 1, notes: existingNotes });
   }
 
   async function handleDuplicate(id: string) {
@@ -160,18 +166,19 @@ export default function Studio() {
     const nextPieces = exists
       ? current.pieces.map(p => (p.id === piece.id ? saved : p))
       : [...current.pieces, saved];
-    // Local save first, always — the sheet is a bonus on top of it, not a
-    // gate. Whatever happens next, her work is already kept.
+    // Local save first, always — sending price and stock to the server is a
+    // bonus on top of it, not a gate. Whatever happens next, her work is
+    // already kept.
     await persist({ ...current, pieces: nextPieces });
     setView({ name: "list" });
-    void syncToSheet({ piece: saved, quantity, notes });
+    void syncToInventory({ piece: saved, quantity, notes });
   }
 
-  async function syncToSheet(payload: SheetPayload) {
-    setSheetSync({ status: "sending" });
-    setSheetRetry(null);
+  async function syncToInventory(payload: InventoryPayload) {
+    setInventorySync({ status: "sending" });
+    setInventoryRetry(null);
     try {
-      const res = await fetch("/api/studio-sheet", {
+      const res = await fetch("/api/studio-inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -182,17 +189,22 @@ export default function Studio() {
           notes: payload.notes,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        setSheetSync({ status: "error", message: data.error || "Couldn't reach the inventory sheet." });
-        setSheetRetry(payload);
+        // 401's own message ("Not signed in.") is true but doesn't tell her
+        // what to do about it — spell that part out.
+        const message =
+          res.status === 401
+            ? "Your session ran out. Reload the page and sign in again."
+            : data.error || "Couldn't reach your inventory.";
+        setInventorySync({ status: "error", message });
+        setInventoryRetry(payload);
         return;
       }
-      if (data.url) setSheetUrl(data.url);
-      setSheetSync({ status: "ok" });
+      setInventorySync({ status: "ok" });
     } catch {
-      setSheetSync({ status: "error", message: "Couldn't reach the inventory sheet." });
-      setSheetRetry(payload);
+      setInventorySync({ status: "error", message: "Couldn't reach your inventory." });
+      setInventoryRetry(payload);
     }
   }
 
@@ -264,29 +276,46 @@ export default function Studio() {
 
       <p className="studio-honesty-banner">
         Photos and descriptions save only to this browser — use Export to hand those to whoever updates
-        the site. Price and how many you have go to your inventory sheet when you save a piece, so stock
-        stays accurate there.
+        the site. Price and how many you have go to the site itself when you save a piece, and that's
+        what checkout actually charges against.
       </p>
 
-      {sheetSync.status !== "idle" && (
-        <p className={`sheet-sync-line sheet-sync-${sheetSync.status}`}>
-          {sheetSync.status === "sending" && "Sending to your inventory sheet…"}
-          {sheetSync.status === "ok" && "Added to your inventory sheet."}
-          {sheetSync.status === "error" && (
+      {view.name !== "edit" && (
+        <div className="studio-tabs">
+          <button
+            type="button"
+            className={`btn btn-plain studio-tab${view.name === "list" ? " studio-tab-active" : ""}`}
+            onClick={() => setView({ name: "list" })}
+          >
+            Pieces
+          </button>
+          <button
+            type="button"
+            className={`btn btn-plain studio-tab${view.name === "inventory" ? " studio-tab-active" : ""}`}
+            onClick={() => setView({ name: "inventory" })}
+          >
+            Inventory
+          </button>
+        </div>
+      )}
+
+      {inventorySync.status !== "idle" && (
+        <p className={`inventory-sync-line inventory-sync-${inventorySync.status}`}>
+          {inventorySync.status === "sending" && "Saving to your inventory…"}
+          {inventorySync.status === "ok" && "Saved to your inventory."}
+          {inventorySync.status === "error" && (
             <>
-              {sheetSync.message}{" "}
-              <button type="button" className="btn btn-small" onClick={() => sheetRetry && void syncToSheet(sheetRetry)}>
+              {inventorySync.message}{" "}
+              <button
+                type="button"
+                className="btn btn-small"
+                onClick={() => inventoryRetry && void syncToInventory(inventoryRetry)}
+              >
                 Retry
               </button>
             </>
           )}
         </p>
-      )}
-
-      {sheetUrl && (
-        <a className="sheet-link" href={sheetUrl} target="_blank" rel="noreferrer">
-          Open your inventory sheet
-        </a>
       )}
 
       {importError && <p className="import-error">{importError}</p>}
@@ -303,12 +332,13 @@ export default function Studio() {
         />
       )}
 
+      {view.name === "inventory" && <InventoryTable />}
+
       {view.name === "edit" && editingPiece && (
         <PieceForm
           piece={editingPiece}
           onSave={(p, quantity, notes) => void handleSavePiece(p, quantity, notes)}
           onCancel={() => setView({ name: "list" })}
-          onSheetUrl={setSheetUrl}
         />
       )}
 
