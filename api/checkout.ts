@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getRow, isSoldOut } from "./_lib/inventory";
 
-// Starts a Stripe Checkout session for a single piece. The sheet is the only
-// source of price and stock — nothing the client sends is trusted for either,
+// Starts a Stripe Checkout session for a single piece. The inventory store is
+// the only source of price and stock — nothing the client sends is trusted,
 // because a client-supplied amount is the easiest way this kind of endpoint
 // gets robbed.
 
@@ -72,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     row = await getRow(slug);
   } catch {
-    res.status(502).json({ error: "Couldn't reach the inventory sheet. Please try again." });
+    res.status(502).json({ error: "Couldn't reach the inventory. Please try again." });
     return;
   }
 

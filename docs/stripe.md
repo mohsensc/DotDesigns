@@ -1,7 +1,7 @@
 # Stripe checkout
 
 `POST /api/checkout` starts a Stripe Checkout session for one piece, priced
-and stocked from the Inventory sheet — never from the client. `POST
+and stocked from the inventory store — never from the client. `POST
 /api/stripe-webhook` receives the result and decrements stock when a
 payment completes.
 
@@ -36,7 +36,7 @@ Subscribing to `checkout.session.async_payment_failed` and
 event it doesn't recognise with a 200 and does nothing. There is deliberately
 nothing to undo on those two: stock is only ever decremented once a payment
 has actually succeeded, never optimistically at checkout time, so a failed or
-abandoned session leaves the sheet untouched.
+abandoned session leaves stock untouched.
 
 Reveal the endpoint's signing secret afterwards — that's
 `STRIPE_WEBHOOK`.

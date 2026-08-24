@@ -22,8 +22,6 @@ type Props = {
   piece: Piece;
   onSave: (piece: Piece, quantity: number, notes: string) => void;
   onCancel: () => void;
-  /** Fires as soon as a spreadsheet URL is known, even before the first save. */
-  onSheetUrl?: (url: string) => void;
 };
 
 // A video this big is unlikely to fit in IndexedDB alongside everything
@@ -51,7 +49,7 @@ function computeSize(unit: SizeUnit, h: string, l: string, d: string, hasDepth: 
 
 // One form for both "add a piece" and "edit a piece" — the caller decides
 // which by what it passes in as `piece`.
-export default function PieceForm({ piece, onSave, onCancel, onSheetUrl }: Props) {
+export default function PieceForm({ piece, onSave, onCancel }: Props) {
   const [draft, setDraft] = useState<Piece>(piece);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [mediaPendingDelete, setMediaPendingDelete] = useState<MediaRef | null>(null);
@@ -67,27 +65,30 @@ export default function PieceForm({ piece, onSave, onCancel, onSheetUrl }: Props
   const [depthStr, setDepthStr] = useState(piece.size?.depth != null ? String(piece.size.depth) : "");
   const [hasDepth, setHasDepth] = useState(piece.size?.depth != null);
 
-  // Quantity and sheet notes don't live on Piece — they live in the sheet
-  // itself. Default to "1 and blank" for a new piece; for an existing one
+  // Quantity and notes don't live on Piece — they live in the server-side
+  // inventory. Default to "1 and blank" for a new piece; for an existing one
   // we fetch the real values below so a save here can't stomp a count Hajar
-  // just typed directly into the sheet.
+  // already set directly in the Inventory tab.
   const [quantityStr, setQuantityStr] = useState("1");
   const [notes, setNotes] = useState("");
-  const [sheetPrefillFailed, setSheetPrefillFailed] = useState(false);
+  const [inventoryPrefillFailed, setInventoryPrefillFailed] = useState(false);
 
   useEffect(() => {
-    if (!piece.slug) return; // new piece — nothing in the sheet to fetch yet
+    if (!piece.slug) return; // new piece — nothing in inventory to fetch yet
     let cancelled = false;
-    fetch(`/api/studio-sheet?slug=${encodeURIComponent(piece.slug)}`)
+    fetch(`/api/studio-inventory?slug=${encodeURIComponent(piece.slug)}`)
       .then(res => (res.ok ? res.json() : Promise.reject(res)))
-      .then((data: { quantity?: number | null; notes?: string; url?: string }) => {
+      .then((data: { row?: { quantity?: number; notes?: string } | null }) => {
         if (cancelled) return;
-        if (typeof data.quantity === "number") setQuantityStr(String(data.quantity));
-        if (typeof data.notes === "string") setNotes(data.notes);
-        if (typeof data.url === "string") onSheetUrl?.(data.url);
+        // A successful response with row: null just means this piece has no
+        // inventory entry yet — that's not a failure, so don't warn about it.
+        if (data.row) {
+          if (typeof data.row.quantity === "number") setQuantityStr(String(data.row.quantity));
+          if (typeof data.row.notes === "string") setNotes(data.row.notes);
+        }
       })
       .catch(() => {
-        if (!cancelled) setSheetPrefillFailed(true);
+        if (!cancelled) setInventoryPrefillFailed(true);
       });
     return () => {
       cancelled = true;
@@ -287,11 +288,11 @@ export default function PieceForm({ piece, onSave, onCancel, onSheetUrl }: Props
           />
         </label>
         <p className="field-hint">
-          This is the number in your inventory sheet. 0 means the website shows this piece as sold out.
+          This is the number in your inventory. 0 means the website shows this piece as sold out.
         </p>
-        {sheetPrefillFailed && (
+        {inventoryPrefillFailed && (
           <p className="field-hint field-hint-warn">
-            Couldn't check your inventory sheet — saving now will overwrite the count and any notes there
+            Couldn't check your inventory — saving now will overwrite the count and any notes there
             with what's shown here.
           </p>
         )}

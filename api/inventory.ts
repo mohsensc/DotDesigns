@@ -16,7 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Not configured yet — the shop still has to render, just with no sheet
+  // Not configured yet — the shop still has to render, just with no stock
   // data. Empty map, not a 500: the catalog's own status field carries on.
   if (!isConfigured()) {
     res.status(200).json({ pieces: {} } satisfies InventoryPayload);
@@ -32,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Cache-Control", "s-maxage=30, stale-while-revalidate=60");
     res.status(200).json({ pieces } satisfies InventoryPayload);
   } catch {
-    // A Sheets hiccup shouldn't take the shop down. Empty map, same as
+    // A storage hiccup shouldn't take the shop down. Empty map, same as
     // unconfigured — the client falls back to the catalog's own status.
     res.status(200).json({ pieces: {} } satisfies InventoryPayload);
   }

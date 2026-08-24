@@ -135,8 +135,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // webhook on anything else, and a retry storm is worse than one write we
   // log and move on from. There's no event-id dedupe table here, so a
   // genuine Stripe retry of the same completed session can decrement stock
-  // twice — acceptable at this scale, same tradeoff as the sheet's
-  // read-modify-write race noted in inventory.ts.
+  // twice. Acceptable at this scale: the decrement itself is atomic, so
+  // stock can't go negative, it just undercounts by one on a duplicate.
   if (slug) {
     try {
       await decrementQuantity(slug, 1);

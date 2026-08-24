@@ -1,73 +1,55 @@
 // The inventory ledger — server-side source of truth for price and stock.
 // This is what makes it safe to charge money: the client never gets to say
-// what a piece costs or whether it's still in stock, this sheet does.
+// what a piece costs or whether it's still in stock, this does.
 //
-// Sheet tab "Inventory", row 1 header, columns A-F:
-//   slug | title | price_cad | quantity | notes | updated_at
-// A piece is sold out when quantity <= 0. No separate status column —
-// that's deliberate, it keeps one number for Hajar to edit.
+// Backed by Redis. Layout:
+//   inv:slugs          SET of every slug we know about
+//   inv:meta:<slug>    JSON blob: title, price, notes, updatedAt
+//   inv:qty:<slug>     a bare integer, kept separate on purpose
+//
+// Quantity lives in its own key so it can be decremented atomically. Folding
+// it into the JSON would mean read-modify-write, which is exactly the race
+// that lets two people buy the last piece at the same moment.
 
-import { appendRow, isConfigured, readRange, updateRange } from "./google-sheets";
+import { command, eval_, isConfigured } from "./redis";
 
-// Re-exported so endpoint code only needs one import to check "is Sheets
-// configured" before touching inventory, instead of reaching into
-// google-sheets.ts directly.
 export { isConfigured };
 
-const SHEET_NAME = "Inventory";
-const DATA_RANGE = `${SHEET_NAME}!A2:F`;
-const CACHE_TTL_MS = 60_000;
+const SLUGS_KEY = "inv:slugs";
+const metaKey = (slug: string) => `inv:meta:${slug}`;
+const qtyKey = (slug: string) => `inv:qty:${slug}`;
 
 export type InventoryRow = {
   slug: string;
   title: string;
-  /** Dollars, may be fractional ("1200.50" parses to 1200.5). null means unparseable / not for sale — never coerce to 0. */
+  /** Dollars, may be fractional. null means not for sale — never coerce to 0. */
   price: number | null;
   quantity: number;
   notes: string;
   updatedAt: string;
-  /** 1-based row number in the sheet, needed to write back to this row. */
-  rowNumber: number;
 };
 
-let cache: { at: number; rows: Map<string, InventoryRow> } | null = null;
-
-function bustCache(): void {
-  cache = null;
-}
-
-async function readFresh(): Promise<Map<string, InventoryRow>> {
-  const rows = await readRange(DATA_RANGE);
-  const map = new Map<string, InventoryRow>();
-  rows.forEach((row, i) => {
-    // DATA_RANGE starts at row 2, so index 0 of `rows` is sheet row 2.
-    const parsed = rowToInventoryRow(row, i + 2);
-    if (parsed) map.set(parsed.slug, parsed);
-  });
-  cache = { at: Date.now(), rows: map };
-  return map;
-}
+type StoredMeta = {
+  title?: string;
+  price?: number | null;
+  notes?: string;
+  updatedAt?: string;
+};
 
 /**
- * Pulls the one number out of a spreadsheet cell, or refuses.
+ * Reads a number that a person typed, or refuses.
  *
- * "$1,200", " 1200 ", "1200.50" all resolve. "", "sold", "TBD" become null —
- * null means not purchasable, and that is the safe direction to fail.
- *
- * The subtle part is a cell holding MORE than one number. Stripping every
- * non-digit and parsing what's left turns "1200 (was 1500)" into 12001500 and
- * charges twelve million dollars for a twelve hundred dollar piece. So the
- * separators come out first, then the remaining number-like tokens are counted:
- * exactly one is a price, anything else is ambiguous and refused. A note in the
- * price cell should stop a sale, never invent one.
+ * Kept strict even though the input is now a form rather than a spreadsheet
+ * cell: pasted values still arrive with currency symbols and stray text, and
+ * the failure this guards against is severe. Stripping every non-digit turns
+ * "1200 (was 1500)" into 12001500 and charges twelve million dollars for a
+ * twelve hundred dollar piece. So: exactly one number, or nothing.
  */
-function parseAmount(raw: string | undefined): number | null {
-  if (!raw) return null;
-  // Drop currency symbols, spaces, and thousands separators sitting between
-  // digits ("1,200" is one number; "1200, 1500" is two).
+export function parseAmount(raw: unknown): number | null {
+  if (typeof raw === "number") return Number.isFinite(raw) && raw >= 0 ? raw : null;
+  if (typeof raw !== "string" || !raw.trim()) return null;
   const normalised = raw.replace(/(?<=\d),(?=\d{3}(\D|$))/g, "").replace(/[$\s]/g, "");
-  // A minus anywhere means the cell isn't a plain amount ("-50", "1200-1500").
-  // Stripping it would turn a negative into a positive charge.
+  // A minus anywhere means this isn't a plain amount ("-50", "1200-1500").
   if (normalised.includes("-")) return null;
   const tokens = normalised.match(/\d+(?:\.\d+)?/g);
   if (!tokens || tokens.length !== 1) return null;
@@ -75,121 +57,121 @@ function parseAmount(raw: string | undefined): number | null {
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function parsePrice(raw: string | undefined): number | null {
-  return parseAmount(raw);
-}
-
-/**
- * Same one-number-or-nothing rule as the price, but an unreadable quantity
- * degrades to 0 rather than null. "2 (one reserved)" is ambiguous, and reading
- * it as 21 would keep selling a piece that's nearly gone — treating it as sold
- * out costs a sale, which is the cheaper mistake.
- */
-function parseQuantity(raw: string | undefined): number {
+/** Unreadable quantity means 0 — losing a sale beats selling what's gone. */
+export function parseQuantity(raw: unknown): number {
   const value = parseAmount(raw);
   return value === null ? 0 : Math.trunc(value);
-}
-
-function rowToInventoryRow(row: string[], rowNumber: number): InventoryRow | null {
-  const slug = (row[0] ?? "").trim();
-  if (!slug) return null;
-  return {
-    slug,
-    title: (row[1] ?? "").trim(),
-    price: parsePrice(row[2]),
-    quantity: parseQuantity(row[3]),
-    notes: (row[4] ?? "").trim(),
-    updatedAt: (row[5] ?? "").trim(),
-    rowNumber,
-  };
-}
-
-export async function getInventory(): Promise<Map<string, InventoryRow>> {
-  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.rows;
-  return readFresh();
-}
-
-export async function getRow(slug: string): Promise<InventoryRow | null> {
-  const inventory = await getInventory();
-  return inventory.get(slug) ?? null;
-}
-
-// Read-modify-write callers (append/setQuantity/decrementQuantity) can't go
-// through the cached getRow — up to 60s of staleness there would mean a
-// checkout or a duplicate-slug check reasoning about numbers Hajar already
-// changed. They read fresh instead; only plain lookups use the cache.
-async function getRowFresh(slug: string): Promise<InventoryRow | null> {
-  const inventory = await readFresh();
-  return inventory.get(slug) ?? null;
 }
 
 export function isSoldOut(row: InventoryRow): boolean {
   return row.quantity <= 0;
 }
 
-export async function appendPiece(piece: {
+function readMeta(raw: unknown): StoredMeta {
+  if (typeof raw !== "string") return {};
+  try {
+    return JSON.parse(raw) as StoredMeta;
+  } catch {
+    return {};
+  }
+}
+
+function rowFrom(slug: string, metaRaw: unknown, qtyRaw: unknown): InventoryRow {
+  const meta = readMeta(metaRaw);
+  return {
+    slug,
+    title: meta.title ?? "",
+    price: meta.price ?? null,
+    quantity: parseQuantity(qtyRaw),
+    notes: meta.notes ?? "",
+    updatedAt: meta.updatedAt ?? "",
+  };
+}
+
+export async function getRow(slug: string): Promise<InventoryRow | null> {
+  const exists = await command<number>(["SISMEMBER", SLUGS_KEY, slug]);
+  if (!exists) return null;
+  const [metaRaw, qtyRaw] = await Promise.all([
+    command<string | null>(["GET", metaKey(slug)]),
+    command<string | null>(["GET", qtyKey(slug)]),
+  ]);
+  return rowFrom(slug, metaRaw, qtyRaw);
+}
+
+export async function getInventory(): Promise<Map<string, InventoryRow>> {
+  const slugs = (await command<string[]>(["SMEMBERS", SLUGS_KEY])) ?? [];
+  const map = new Map<string, InventoryRow>();
+  if (!slugs.length) return map;
+
+  // One round trip each for metas and quantities rather than two per slug.
+  const [metas, qtys] = await Promise.all([
+    command<(string | null)[]>(["MGET", ...slugs.map(metaKey)]),
+    command<(string | null)[]>(["MGET", ...slugs.map(qtyKey)]),
+  ]);
+
+  slugs.forEach((slug, i) => {
+    map.set(slug, rowFrom(slug, metas?.[i], qtys?.[i]));
+  });
+  return map;
+}
+
+/** Creates or updates a piece. Quantity is written straight, not decremented. */
+export async function upsertPiece(piece: {
   slug: string;
   title: string;
   price: number | null;
   quantity: number;
   notes: string;
 }): Promise<void> {
-  const existing = await getRowFresh(piece.slug);
-  const updatedAt = new Date().toISOString();
-  const values = [
-    piece.slug,
-    piece.title,
-    piece.price ?? "",
-    piece.quantity,
-    piece.notes,
-    updatedAt,
-  ];
-
-  if (existing) {
-    await updateRange(`${SHEET_NAME}!A${existing.rowNumber}:F${existing.rowNumber}`, values);
-  } else {
-    await appendRow(DATA_RANGE, values);
-  }
-  bustCache();
+  const meta: StoredMeta = {
+    title: piece.title,
+    price: piece.price,
+    notes: piece.notes,
+    updatedAt: new Date().toISOString(),
+  };
+  await Promise.all([
+    command(["SADD", SLUGS_KEY, piece.slug]),
+    command(["SET", metaKey(piece.slug), JSON.stringify(meta)]),
+    command(["SET", qtyKey(piece.slug), String(Math.max(0, Math.trunc(piece.quantity)))]),
+  ]);
 }
+
+/** Kept as the old name too — several endpoints were written against it. */
+export const appendPiece = upsertPiece;
 
 export async function setQuantity(slug: string, quantity: number): Promise<void> {
-  const row = await getRowFresh(slug);
-  if (!row) throw new Error("No inventory row for that slug.");
-  await updateRange(`${SHEET_NAME}!D${row.rowNumber}:F${row.rowNumber}`, [
-    quantity,
-    row.notes,
-    new Date().toISOString(),
-  ]);
-  bustCache();
+  const exists = await command<number>(["SISMEMBER", SLUGS_KEY, slug]);
+  if (!exists) throw new Error("No inventory entry for that slug.");
+  await command(["SET", qtyKey(slug), String(Math.max(0, Math.trunc(quantity)))]);
 }
 
-/**
- * Subtracts `by` from a piece's stock and writes the result back.
- *
- * Honesty about the failure mode: a spreadsheet has no transactions. This
- * reads fresh (bypassing the 60s cache) so the window isn't cache-shaped,
- * but two checkouts racing on the last unit can still both read quantity=1
- * in the gap between this read and this write, and both decide "in stock".
- * This clamps the result at zero so the number never goes negative, but it
- * does not prevent overselling by one unit under real concurrency. At this
- * scale (one small studio, one-off pieces) that's an acceptable risk, not a
- * solved problem — a real fix needs a database with actual row locking.
- */
+export async function removePiece(slug: string): Promise<void> {
+  await Promise.all([
+    command(["SREM", SLUGS_KEY, slug]),
+    command(["DEL", metaKey(slug)]),
+    command(["DEL", qtyKey(slug)]),
+  ]);
+}
+
+// Check-and-decrement in one server-side step. Doing this as a GET then a SET
+// from here would leave a window where two checkouts both read 1 and both
+// decide the piece is available — the exact oversell the spreadsheet version
+// could not close. Returns the new quantity, or -1 if there was nothing left.
+const DECREMENT_LUA = `
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+if current <= 0 then return -1 end
+local remaining = current - tonumber(ARGV[1])
+if remaining < 0 then remaining = 0 end
+redis.call('SET', KEYS[1], remaining)
+return remaining
+`;
+
 export async function decrementQuantity(slug: string, by: number): Promise<number> {
-  const row = await getRowFresh(slug);
-  if (!row) throw new Error("No inventory row for that slug.");
-  const next = Math.max(0, row.quantity - by);
-  await updateRange(`${SHEET_NAME}!D${row.rowNumber}:F${row.rowNumber}`, [
-    next,
-    row.notes,
-    new Date().toISOString(),
-  ]);
-  bustCache();
-  return next;
+  const result = await eval_<number>(DECREMENT_LUA, [qtyKey(slug)], [Math.max(1, Math.trunc(by))]);
+  return typeof result === "number" ? result : 0;
 }
 
-/** Exposed for callers that write to the sheet through other means and need the cache invalidated. */
+/** No cache to clear any more — reads go straight to Redis. Kept so callers compile. */
 export function invalidateInventoryCache(): void {
-  bustCache();
+  /* nothing to do */
 }
