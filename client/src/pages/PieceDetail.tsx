@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { loadCatalog, resolveMedia } from "../lib/catalog-store";
 import { sendInquiry, looksLikeEmail, CONTACT_EMAIL } from "../lib/inquiry";
+import { loadInventory, type StockEntry } from "../lib/inventory";
 import { useDocumentTitle } from "../lib/use-document-title";
 import {
   coverOf,
@@ -17,12 +18,14 @@ import ScaleFigure from "../components/ScaleFigure";
 import "./PieceDetail.css";
 
 type SendState = "idle" | "sending" | "sent" | "failed";
+type BuyState = "idle" | "sending" | "failed";
 
 export default function PieceDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [mediaSrcs, setMediaSrcs] = useState<Record<string, string>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [stock, setStock] = useState<StockEntry | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +36,16 @@ export default function PieceDetail() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadInventory().then(inventory => {
+      if (!cancelled) setStock(inventory[slug ?? ""]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
 
   const piece = useMemo(() => catalog?.pieces.find(p => p.slug === slug), [catalog, slug]);
 
@@ -68,6 +81,26 @@ export default function PieceDetail() {
   const [website, setWebsite] = useState(""); // honeypot
   const [sendState, setSendState] = useState<SendState>("idle");
   const [sendError, setSendError] = useState("");
+  const [buyState, setBuyState] = useState<BuyState>("idle");
+  const [buyError, setBuyError] = useState("");
+
+  // The sheet is the live stock number and wins over the catalog's own status
+  // whenever there's an entry for this slug — same rule as the shop grid.
+  const soldOut = stock ? stock.soldOut : piece?.status === "sold";
+  // What to show is not the same question as what we can charge. The sheet's
+  // price may be present-but-unparseable (null = "not for sale", per
+  // inventory.ts) — that must block the button even though the catalog still
+  // has an old price to display.
+  const displayPrice = stock?.price ?? piece?.price ?? null;
+  // /api/checkout reads the sheet row to price and decrement stock, so a
+  // piece with no sheet entry (or an unpriced one, or a sold-out one) is
+  // never purchasable — the Buy button stays disabled for all three.
+  const canBuy = !!stock && !stock.soldOut && stock.price != null;
+  const lowStock = !!stock && !stock.soldOut && stock.quantity > 0 && stock.quantity <= 2;
+
+  // Whether the visitor has touched the message box — once they have, the
+  // sold-out/available copy swap below leaves their text alone.
+  const [messageTouched, setMessageTouched] = useState(false);
 
   useEffect(() => {
     if (!piece) return;
@@ -75,13 +108,46 @@ export default function PieceDetail() {
     setEmail("");
     setSendState("idle");
     setSendError("");
-    const unavailable = piece.status === "sold" || piece.status === "reserved";
+    setBuyState("idle");
+    setBuyError("");
+    setMessageTouched(false);
+  }, [piece]);
+
+  useEffect(() => {
+    if (!piece || messageTouched) return;
+    const unavailable = soldOut || piece.status === "reserved";
     setMessage(
       unavailable
         ? `Hi, I'm interested in something similar to "${piece.title}". Could you tell me about a comparable commission?`
         : `Hi, I'd like to ask about "${piece.title}".`,
     );
-  }, [piece]);
+    // This re-runs once the inventory fetch resolves and soldOut flips from
+    // its initial guess — as long as the visitor hasn't typed anything yet,
+    // the copy corrects itself instead of drifting from the heading below.
+  }, [piece, soldOut, messageTouched]);
+
+  async function handleBuy() {
+    if (!piece || !canBuy) return;
+    setBuyState("sending");
+    setBuyError("");
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: piece.slug }),
+      });
+      const body = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
+      if (!res.ok || !body?.url) {
+        setBuyState("failed");
+        setBuyError(body?.error || "Couldn't start checkout. Please try again.");
+        return;
+      }
+      window.location.href = body.url;
+    } catch {
+      setBuyState("failed");
+      setBuyError("Couldn't reach checkout. Check your connection and try again.");
+    }
+  }
 
   if (catalog && !piece) {
     return (
@@ -187,10 +253,13 @@ export default function PieceDetail() {
             {piece.year ? ` · ${piece.year}` : ""}
           </p>
           <h1 className="piece-detail__title">{piece.title}</h1>
-          {piece.status !== "available" && (
-            <p className="piece-detail__pill">{STATUS_LABELS[piece.status]}</p>
+          {(soldOut || piece.status !== "available") && (
+            <p className="piece-detail__pill">{soldOut ? "Sold out" : STATUS_LABELS[piece.status]}</p>
           )}
-          <p className="piece-detail__price">{formatPrice(piece.price)}</p>
+          <p className="piece-detail__price">{formatPrice(displayPrice)}</p>
+          {lowStock && (
+            <p className="piece-detail__low-stock">{stock!.quantity === 1 ? "Last one" : `${stock!.quantity} left`}</p>
+          )}
           <p className="piece-detail__description">{piece.description}</p>
 
           {(size || piece.materials) && (
@@ -212,6 +281,27 @@ export default function PieceDetail() {
 
           <ScaleFigure size={piece.size} formatted={size} />
 
+          {soldOut && <p className="piece-detail__sold-out">Sold out.</p>}
+
+          {/* Only shown when the piece is genuinely purchasable. A piece with no
+              row in the inventory sheet — every piece, until the sheet is wired
+              up — would otherwise get a permanently dead Buy button, which reads
+              as a broken site rather than as "enquire instead". The enquiry form
+              below is the path in that case. */}
+          {!soldOut && canBuy && (
+            <div className="piece-detail__buy">
+              <button
+                type="button"
+                className="piece-detail__buy-btn"
+                onClick={handleBuy}
+                disabled={buyState === "sending"}
+              >
+                {buyState === "sending" ? "Redirecting…" : "Buy now"}
+              </button>
+              {buyState === "failed" && <p className="piece-detail__error">{buyError}</p>}
+            </div>
+          )}
+
           <div className="piece-detail__action">
             {sendState === "sent" ? (
               <p className="piece-detail__sent">
@@ -220,7 +310,7 @@ export default function PieceDetail() {
             ) : (
               <form className="piece-detail__form" onSubmit={handleSubmit} noValidate>
                 <h2 className="piece-detail__form-title">
-                  {piece.status === "sold" || piece.status === "reserved"
+                  {soldOut || piece.status === "reserved"
                     ? "Ask about a similar piece"
                     : "Enquire about this piece"}
                 </h2>
@@ -260,7 +350,10 @@ export default function PieceDetail() {
                   <span>Message</span>
                   <textarea
                     value={message}
-                    onChange={e => setMessage(e.target.value)}
+                    onChange={e => {
+                      setMessage(e.target.value);
+                      setMessageTouched(true);
+                    }}
                     rows={4}
                     required
                   />

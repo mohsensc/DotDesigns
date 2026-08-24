@@ -176,6 +176,62 @@
   color: var(--pd-accent);
 }
 
+.piece-detail__low-stock {
+  margin: 6px 0 0;
+  font-family: var(--pd-font-body);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pd-accent);
+}
+
+.piece-detail__sold-out {
+  margin: 28px 0 0;
+  font-family: var(--pd-font-body);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pd-ink-soft);
+}
+
+.piece-detail__buy {
+  margin: 28px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* A rounded pill, distinct from the square-edged enquiry button — this is
+   the primary action, weighted like the scroll film's .sw-topcta. */
+.piece-detail__buy-btn {
+  display: inline-block;
+  font-family: var(--pd-font-body);
+  font-weight: 600;
+  font-size: 0.86rem;
+  color: var(--pd-bg);
+  background: var(--pd-accent);
+  border: none;
+  border-radius: 999px;
+  padding: 13px 30px;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+}
+
+.piece-detail__buy-btn:hover {
+  opacity: 0.85;
+}
+
+.piece-detail__buy-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.piece-detail__buy-btn:focus-visible {
+  outline: 2px solid var(--pd-ink);
+  outline-offset: 3px;
+}
+
 .piece-detail__description {
   margin: 26px 0 0;
   max-width: 46ch;

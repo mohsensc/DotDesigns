@@ -5,6 +5,7 @@ import Cover from "./pages/Cover.tsx";
 import Shop from "./pages/Shop.tsx";
 import PieceDetail from "./pages/PieceDetail.tsx";
 import SpecialRequest from "./pages/SpecialRequest.tsx";
+import CheckoutResult from "./pages/CheckoutResult.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 export default function App() {
@@ -19,6 +20,10 @@ export default function App() {
         <Route path="/shop/request" element={<SpecialRequest />} />
         <Route path="/shop" element={<Shop />} />
         <Route path="/shop/:slug" element={<PieceDetail />} />
+        {/* Where Stripe hands the buyer back. Both are plain pages — the webhook
+            is what actually records the sale, not a visit to this URL. */}
+        <Route path="/checkout/success" element={<CheckoutResult outcome="success" />} />
+        <Route path="/checkout/cancelled" element={<CheckoutResult outcome="cancelled" />} />
         {/* Works / About / Contact aren't built yet —
             every other path falls through to the 404. */}
         <Route path="*" element={<NotFound />} />
