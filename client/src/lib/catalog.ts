@@ -2,26 +2,24 @@
 // The catalog contract.
 //
 // One shape, three consumers: the public shop reads it, the studio writes it,
-// and scripts/build.mjs reads the demo JSON at build time to prerender per-piece
-// HTML. That last one is why the demo pieces live in catalog.demo.json rather
-// than in this file — Node can't import TypeScript, and two copies would drift.
+// and api/_lib/catalog.ts stores it in Redis. The demo pieces live in
+// shared/catalog.demo.json because Node reads that one too — the API's empty
+// state and scripts/build.mjs' prerender fallback.
 //
-// Media is deliberately indirect. A MediaRef either points at a URL that ships
-// with the build (the demo pieces) or at a blob the studio stashed in IndexedDB
-// (anything Hajar uploads). Only `resolveMedia` needs to know the difference.
+// A MediaRef is just a URL now: a file that ships with the build, or a blob the
+// studio uploaded. Nothing to resolve asynchronously any more.
 // ---------------------------------------------------------------------------
-
-import demo from "./catalog.demo.json";
 
 export type MediaKind = "image" | "video";
 
 export type MediaRef = {
   id: string;
   kind: MediaKind;
-  /** Ships with the build. Set for demo pieces, absent for uploads. */
-  src?: string;
-  /** IndexedDB key. Set for uploads, absent for demo pieces. */
-  blobKey?: string;
+  /** Where the file actually is. A build path, or a Vercel Blob URL. */
+  src: string;
+  /** Natural pixel size when the studio knew it. Lets the grid reserve space. */
+  width?: number;
+  height?: number;
   /**
    * What the photo shows, in Hajar's words. Printed under the image AND used as
    * the alt attribute — she writes one visible caption and never sees the word
@@ -203,12 +201,3 @@ export function publicPieces(catalog: Catalog): Piece[] {
     .filter(p => p.status !== "draft")
     .sort((a, b) => a.order - b.order);
 }
-
-// ---------------------------------------------------------------------------
-// Demo catalog. Lightweight on purpose: the covers that exist reuse stills that
-// already ship for the scroll film, so the shop adds no image weight. The two
-// pottery pieces carry no photo at all — every still in the build is a wide
-// gallery interior, which looks wrong on a $500 bowl.
-// ---------------------------------------------------------------------------
-
-export const DEMO_CATALOG = demo as Catalog;

@@ -19,9 +19,10 @@ type RowDraft = {
 };
 
 // 401 is the one error where the server's message isn't enough on its own:
-// "Not signed in." is true but doesn't tell her what to do about it.
+// "Not signed in." is true but doesn't tell her what to do about it. The
+// screen behind this drops to the lock screen at the same time.
 function errorFrom(res: Response, serverMessage: string | undefined, fallback: string): string {
-  if (res.status === 401) return "Your session ran out. Reload the page and sign in again.";
+  if (res.status === 401) return "Your session ended, sign in again.";
   return serverMessage || fallback;
 }
 
@@ -44,7 +45,14 @@ function isDirty(draft: RowDraft, row: InventoryRow): boolean {
   return !priceMatches || String(row.quantity) !== draft.quantityStr || row.notes !== draft.notes;
 }
 
-export default function InventoryTable() {
+type Props = {
+  /** Changes when she signs back in, which is the cue to load again. */
+  session?: number;
+  /** Called on any 401 so the whole studio locks, not just this tab. */
+  onSessionEnded?: () => void;
+};
+
+export default function InventoryTable({ session, onSessionEnded }: Props) {
   const [rows, setRows] = useState<InventoryRow[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -59,6 +67,7 @@ export default function InventoryTable() {
       const res = await fetch("/api/studio-inventory");
       const data = (await res.json().catch(() => ({}))) as { rows?: InventoryRow[]; error?: string };
       if (!res.ok) {
+        if (res.status === 401) onSessionEnded?.();
         setLoadError(errorFrom(res, data.error, "Couldn't load your inventory."));
         setLoading(false);
         return;
@@ -80,9 +89,12 @@ export default function InventoryTable() {
     }
   }
 
+  // This tab stays mounted while the lock screen is up, so a fresh sign-in
+  // reloads it. The dirty check in load() keeps any half-typed row.
   useEffect(() => {
     void load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
 
   function updateDraft(slug: string, patch: Partial<RowDraft>) {
     setDrafts(prev => ({ ...prev, [slug]: { ...prev[slug], ...patch } }));
@@ -127,6 +139,7 @@ export default function InventoryTable() {
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
+        if (res.status === 401) onSessionEnded?.();
         updateDraft(row.slug, { status: "failed", message: errorFrom(res, data.error, "Couldn't save. Try again.") });
         return;
       }
@@ -168,6 +181,7 @@ export default function InventoryTable() {
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
+        if (res.status === 401) onSessionEnded?.();
         setPendingRemove(null);
         setRemoveError(errorFrom(res, data.error, "Couldn't remove that entry."));
         return;
@@ -186,13 +200,13 @@ export default function InventoryTable() {
   }
 
   if (loading && rows === null) {
-    return <p className="empty-note">Loading your inventory…</p>;
+    return <p className="empty-note">Loading your stock…</p>;
   }
 
   return (
     <div className="inventory-view">
       <div className="inventory-header">
-        <h1>Inventory</h1>
+        <p className="lede">Price and how many you have. This is what the website charges against.</p>
         <button type="button" className="btn btn-plain" onClick={() => void load()} disabled={loading}>
           Refresh
         </button>
@@ -203,7 +217,7 @@ export default function InventoryTable() {
 
       {rows && rows.length === 0 && !loadError && (
         <p className="empty-note">
-          Nothing here yet. Pieces show up in your inventory once you save them from the Pieces tab.
+          Nothing here yet. A piece shows up once you post it.
         </p>
       )}
 
@@ -299,7 +313,7 @@ export default function InventoryTable() {
       {pendingRemove && (
         <ConfirmDialog
           title={`Remove "${pendingRemove.title}" from your inventory?`}
-          body="This only takes it out of your inventory — price and quantity stop showing on the site, so it falls back to the enquiry form. The piece itself, its photos, and its description stay exactly as they are in the Pieces tab."
+          body="This only takes it out of your stock list — price and quantity stop showing on the site, so it falls back to the enquiry form. The piece itself, its photos, and its description stay exactly as they are."
           confirmLabel="Remove from inventory"
           onConfirm={() => void confirmRemove()}
           onCancel={() => setPendingRemove(null)}

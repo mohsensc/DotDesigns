@@ -7,7 +7,7 @@ import "./PieceCard.css";
 
 export default function PieceCard({ piece }: { piece: Piece }) {
   const cover = coverOf(piece);
-  const [src, setSrc] = useState("");
+  const src = cover ? resolveMedia(cover) : "";
   const [stock, setStock] = useState<StockEntry | undefined>(undefined);
 
   useEffect(() => {
@@ -19,21 +19,6 @@ export default function PieceCard({ piece }: { piece: Piece }) {
       cancelled = true;
     };
   }, [piece.slug]);
-
-  // resolveMedia can hit IndexedDB, so it's always async — even for demo
-  // pieces that resolve instantly. Guard against setting state after unmount.
-  useEffect(() => {
-    let cancelled = false;
-    setSrc("");
-    if (cover) {
-      resolveMedia(cover).then(url => {
-        if (!cancelled) setSrc(url);
-      });
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [cover]);
 
   // The sheet is the live stock number — it wins over the catalog's own
   // status whenever both are present. Only fall back to the catalog's status
@@ -50,9 +35,7 @@ export default function PieceCard({ piece }: { piece: Piece }) {
         {src ? (
           <img className="piece-card__img" src={src} alt={altOf(cover, piece)} loading="lazy" />
         ) : (
-          // Two cases land here: a piece with no photo yet, and the brief moment
-          // before an async resolve returns. Only the first gets a label — the
-          // second would flash it.
+          // A piece with no photo yet.
           <div className="piece-card__placeholder">
             {!cover && <span className="piece-card__placeholder-note">Photograph coming</span>}
           </div>

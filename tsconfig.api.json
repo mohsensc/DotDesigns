@@ -1,0 +1,16 @@
+{
+  "// why": "api/ was never typechecked. Not named tsconfig.json on purpose: @vercel/node picks that one up when it builds the functions, and this is only for `npx tsc --noEmit -p tsconfig.api.json`. The DOM lib is in there for fetch's RequestInit, which @types/node models without `cache`.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["api/**/*.ts"]
+}

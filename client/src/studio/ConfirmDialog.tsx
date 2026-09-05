@@ -6,8 +6,8 @@ type Props = {
   onCancel: () => void;
 };
 
-// One confirm step, reused for delete-piece, delete-photo, and reset-to-demo.
-// Plain language, no icons — just say what happens.
+// One confirm step, for the two things that can't be undone. Plain language,
+// no icons — just say what happens.
 export default function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel }: Props) {
   return (
     <div className="modal-backdrop" onClick={onCancel}>

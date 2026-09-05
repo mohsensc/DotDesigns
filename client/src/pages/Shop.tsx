@@ -18,9 +18,14 @@ export default function Shop() {
 
   useEffect(() => {
     let cancelled = false;
-    loadCatalog().then(c => {
-      if (!cancelled) setCatalog(c);
-    });
+    // A failed fetch leaves the grid in its loading state rather than
+    // throwing — the endpoint already falls back to the demo pieces, so this
+    // only happens when the network is gone.
+    loadCatalog()
+      .then(c => {
+        if (!cancelled) setCatalog(c);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };

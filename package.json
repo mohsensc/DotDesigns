@@ -9,11 +9,17 @@
     "build": "npm run build --prefix client && npm run build --prefix server",
     "build:site": "node scripts/build.mjs",
     "build:studio": "DEPLOY_TARGET=studio node scripts/build.mjs",
-    "test": "node --test test/*.test.mjs",
+    "typecheck:api": "tsc --noEmit -p tsconfig.api.json",
+    "test": "node --test 'test/*.test.mjs'",
     "start": "npm run start --prefix server"
   },
   "devDependencies": {
+    "@types/node": "^22.20.1",
     "@vercel/node": "^5.0.0",
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.0"
   }
 }

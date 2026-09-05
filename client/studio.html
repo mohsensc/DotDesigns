@@ -2,8 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover so the page reaches under the notch and the home
+         indicator; the CSS pays that back with env(safe-area-inset-*). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="robots" content="noindex, nofollow" />
+    <!-- Added to the home screen this runs without Safari's chrome, which is
+         how Hajar uses it. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Studio" />
+    <meta name="theme-color" content="#f6f4f1" />
+    <!-- Stops iOS turning prices and sizes into phone links. -->
+    <meta name="format-detection" content="telephone=no" />
     <!-- No favicon link: this build sets publicDir false (see vite.config.ts),
          so /favicon.png isn't deployed here and the link would only 404. -->
     <title>Dot Designs — Studio</title>
