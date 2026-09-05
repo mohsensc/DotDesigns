@@ -1,6 +1,8 @@
-/* Dot Designs Studio — Hajar's private catalog tool.
-   Calm, plain, big tap targets. The public site's design work lives
-   elsewhere; this just needs to be obvious and hard to get wrong. */
+/* Dot Designs Studio — Hajar's private posting tool.
+
+   Built for one screen: an iPhone held in one hand. The whole app is a
+   phone-width column, header pinned at the top, tabs pinned at the bottom,
+   only the middle scrolls. Desktop gets the same column, centred. */
 
 :root {
   --studio-bg: #f6f4f1;
@@ -12,10 +14,18 @@
   --studio-accent-ink: #ffffff;
   --studio-danger: #b3432f;
   --studio-radius: 10px;
+  --tab-height: 56px;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -23,45 +33,707 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   color: var(--studio-ink);
   background: var(--studio-bg);
+  /* 17px base, and no input below 16px anywhere — smaller and Safari zooms
+     the whole page the moment she taps a field. */
   font-size: 17px;
   line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
 }
 
-h1, h2 {
+h1,
+h2 {
   font-weight: 600;
   margin: 0 0 8px;
-}
-
-h1 {
-  font-size: 26px;
 }
 
 h2 {
   font-size: 19px;
 }
 
-button, input, select, textarea {
+button,
+input,
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
 
-.studio-loading {
+:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 2px;
+}
+
+/* ---- shell ---- */
+
+.studio-app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--studio-bg);
+  position: relative;
+  overflow: hidden;
+}
+
+@media (min-width: 520px) {
+  .studio-app {
+    border-left: 1px solid var(--studio-line);
+    border-right: 1px solid var(--studio-line);
+  }
+}
+
+/* Locked: kept mounted so a half-written post survives signing back in,
+   but invisible and out of the tab order while the lock screen is up. */
+.studio-app-hidden {
+  visibility: hidden;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.screen-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  padding-top: calc(6px + env(safe-area-inset-top));
+  background: var(--studio-surface);
+  border-bottom: 1px solid var(--studio-line);
+  flex-shrink: 0;
+}
+
+.screen-header-title {
+  flex: 1;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Fixed side widths keep the title actually centred whatever's beside it. */
+.screen-header-side {
+  width: 88px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.screen-header-right {
+  justify-content: flex-end;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--studio-ink);
+  cursor: pointer;
+}
+
+.header-action {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--studio-accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.header-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.screen-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 16px;
+  padding-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lede {
+  color: var(--studio-ink-soft);
+  margin: 0;
+  font-size: 15px;
+}
+
+.empty-note {
+  color: var(--studio-ink-soft);
+}
+
+.banner-error {
+  color: var(--studio-danger);
+  margin: 0;
+}
+
+/* ---- tab bar ---- */
+
+.tab-bar {
+  display: flex;
+  flex-shrink: 0;
+  background: var(--studio-surface);
+  border-top: 1px solid var(--studio-line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tab-btn {
+  flex: 1;
+  min-height: var(--tab-height);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--studio-ink-soft);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tab-btn-on {
+  color: var(--studio-ink);
+  font-weight: 600;
+}
+
+.tab-btn-new {
+  color: var(--studio-accent);
+}
+
+/* ---- home grid ---- */
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  /* Full-bleed inside the padded body — the grid reads better edge to edge. */
+  margin: -16px;
+}
+
+.home-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 0;
+  background: var(--studio-line);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.home-tile img,
+.home-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.home-tile-blank {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  font-size: 18px;
+  padding: 6px;
+  font-size: 12px;
   color: var(--studio-ink-soft);
+  text-align: center;
+}
+
+.tile-badge {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--studio-ink);
+}
+
+.tile-badge-sold {
+  color: #8a4433;
+}
+
+.tile-badge-reserved {
+  color: #8a6c30;
+}
+
+/* ---- piece screen ---- */
+
+.piece-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: -16px -16px 0;
+}
+
+.carousel {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  background: #000;
+}
+
+.carousel-slide {
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  aspect-ratio: 1 / 1;
+}
+
+.carousel-slide img,
+.carousel-slide video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.carousel-empty {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--studio-line);
+  color: var(--studio-ink-soft);
+}
+
+.carousel-count {
+  margin: 0 16px;
+  font-size: 13px;
+  color: var(--studio-ink-soft);
+}
+
+.piece-body {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.piece-body-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.piece-body-head h2 {
+  margin: 0;
+}
+
+.piece-body-meta {
+  margin: 0;
+  color: var(--studio-ink-soft);
+  font-size: 15px;
+}
+
+.piece-body-blurb,
+.piece-body-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.piece-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  font-size: 15px;
+}
+
+.piece-facts dt {
+  color: var(--studio-ink-soft);
+}
+
+.piece-facts dd {
+  margin: 0;
+}
+
+.status-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--studio-line);
+  color: var(--studio-ink-soft);
+}
+
+.status-available {
+  background: #e2efe4;
+  color: #366043;
+}
+
+.status-sold {
+  background: #f2e3e0;
+  color: #8a4433;
+}
+
+.status-reserved {
+  background: #eee6d8;
+  color: #8a6c30;
+}
+
+.status-draft {
+  background: var(--studio-line);
+  color: var(--studio-ink-soft);
+}
+
+/* ---- buttons ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 44px;
+  white-space: normal;
+  text-align: center;
+  background: var(--studio-surface);
+  border-color: var(--studio-line);
+  color: var(--studio-ink);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--studio-accent);
+  color: var(--studio-accent-ink);
+  border-color: var(--studio-accent);
+}
+
+.btn-danger {
+  background: var(--studio-surface);
+  border-color: var(--studio-danger);
+  color: var(--studio-danger);
+}
+
+/* Looks smaller, still 44px to the thumb. */
+.btn-small {
+  padding: 8px 10px;
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.file-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.file-btn input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ---- composer ---- */
+
+.file-notes {
+  margin: 0;
+  padding: 12px 14px;
+  list-style: none;
+  background: #fbf3e6;
+  border: 1px solid #ecd9b8;
+  border-radius: 8px;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Picked photos read left to right, like the roll they came from. */
+.strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  padding-bottom: 4px;
+}
+
+.strip-item {
+  flex: 0 0 148px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scroll-snap-align: start;
+}
+
+.strip-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--studio-line);
+  border: 2px solid transparent;
+}
+
+.strip-item-cover .strip-thumb {
+  border-color: var(--studio-accent);
+}
+
+.strip-thumb img,
+.strip-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.strip-cover-flag {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--studio-accent);
+  color: var(--studio-accent-ink);
+}
+
+.strip-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.strip-actions .btn {
+  flex: 1;
+}
+
+.caption-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.caption-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.caption-thumb {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--studio-line);
+}
+
+.caption-thumb img,
+.caption-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ---- fields ---- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.field span {
+  font-size: 14px;
+  color: var(--studio-ink-soft);
+}
+
+.field input,
+.field select,
+.field textarea {
+  padding: 12px;
+  border: 1px solid var(--studio-line);
+  border-radius: 8px;
+  background: var(--studio-surface);
+  /* 16px minimum — anything smaller triggers iOS's zoom-on-focus. */
+  font-size: 16px;
+  width: 100%;
+}
+
+.field input:disabled {
+  color: var(--studio-ink-soft);
+  background: var(--studio-bg);
+}
+
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+
+.field-hint {
+  font-size: 13px;
+  color: var(--studio-ink-soft);
+  margin: -10px 0 0;
+}
+
+.field-hint-warn {
+  color: var(--studio-danger);
+}
+
+.toggle-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.toggle-field input {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.chips {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chips legend {
+  font-size: 14px;
+  color: var(--studio-ink-soft);
+  padding: 0;
+  margin-bottom: 8px;
+  float: left;
+  width: 100%;
+}
+
+.chip {
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--studio-line);
+  background: var(--studio-surface);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.chip-on {
+  border-color: var(--studio-accent);
+  background: var(--studio-accent);
+  color: var(--studio-accent-ink);
+  font-weight: 600;
+}
+
+.size-section {
+  border-top: 1px solid var(--studio-line);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---- posting status ---- */
+
+.post-status {
+  flex-shrink: 0;
+  background: var(--studio-surface);
+  border-top: 1px solid var(--studio-line);
+  padding: 12px 16px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  font-size: 15px;
+}
+
+.post-status p {
+  margin: 0 0 8px;
+}
+
+.progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--studio-line);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--studio-accent);
+  transition: width 0.2s linear;
+}
+
+.post-error {
+  color: var(--studio-danger);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--tab-height) + 16px + env(safe-area-inset-bottom));
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--studio-ink);
+  color: #fff;
+  font-size: 15px;
+  z-index: 6;
+}
+
+.toast-error {
+  background: var(--studio-danger);
 }
 
 /* ---- lock screen ---- */
 
 .lock-screen {
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  background: var(--studio-bg);
 }
 
 .lock-card {
@@ -69,8 +741,12 @@ button, input, select, textarea {
   max-width: 360px;
   background: var(--studio-surface);
   border-radius: var(--studio-radius);
-  padding: 32px;
+  padding: 28px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.lock-card h1 {
+  font-size: 22px;
 }
 
 .lock-hint {
@@ -103,688 +779,58 @@ button, input, select, textarea {
   margin-top: 16px;
 }
 
-/* ---- layout ---- */
+/* ---- action sheet ---- */
 
-.studio {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 20px 16px 80px;
-}
-
-/* Desktop gets to breathe a bit more, but the design target stays the phone. */
-@media (min-width: 720px) {
-  .studio {
-    max-width: 720px;
-    padding: 32px 24px 96px;
-  }
-}
-
-.studio-header {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.studio-header-title {
-  font-size: 22px;
-  font-weight: 600;
-}
-
-.studio-header-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.studio-header-actions .btn {
-  width: 100%;
-}
-
-@media (min-width: 560px) {
-  .studio-header-actions {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .studio-header-actions .btn {
-    width: auto;
-  }
-}
-
-.studio-honesty-banner {
-  background: #fbf3e6;
-  border: 1px solid #ecd9b8;
-  border-radius: 8px;
-  padding: 12px 16px;
-  color: var(--studio-ink);
-  margin-bottom: 24px;
-  font-size: 15px;
-}
-
-.import-error {
-  color: var(--studio-danger);
-  margin-bottom: 16px;
-}
-
-.inventory-sync-line {
-  font-size: 14px;
-  color: var(--studio-ink-soft);
-  margin: -8px 0 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.inventory-sync-error {
-  color: var(--studio-danger);
-}
-
-/* ---- tabs ---- */
-
-.studio-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.studio-tabs .btn {
-  flex: 1;
-}
-
-.studio-tab-active {
-  border-color: var(--studio-accent);
-  color: var(--studio-accent);
-  font-weight: 600;
-}
-
-/* ---- buttons ---- */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 18px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  min-height: 44px;
-  white-space: normal;
-  text-align: center;
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--studio-accent);
-  color: var(--studio-accent-ink);
-}
-
-.btn-plain {
-  background: var(--studio-surface);
-  border-color: var(--studio-line);
-  color: var(--studio-ink);
-}
-
-.btn-danger {
-  background: var(--studio-surface);
-  border-color: var(--studio-danger);
-  color: var(--studio-danger);
-}
-
-/* Still 44px minimum — this is a smaller-looking button, not a smaller
-   tap target. Used for photo actions where several sit close together. */
-.btn-small {
-  padding: 10px 12px;
-  min-height: 44px;
-  font-size: 14px;
-}
-
-.btn-block {
-  width: 100%;
-}
-
-.file-btn {
-  position: relative;
-  overflow: hidden;
-}
-
-.file-btn input[type="file"] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-/* ---- piece list ---- */
-
-.piece-list-header {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.piece-list-header .btn {
-  width: 100%;
-}
-
-@media (min-width: 560px) {
-  .piece-list-header {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .piece-list-header .btn {
-    width: auto;
-  }
-}
-
-.empty-note {
-  color: var(--studio-ink-soft);
-}
-
-.piece-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* One card per piece, everything stacked. Five actions side by side used to
-   live in one row here — unusable at phone width, so each gets its own full
-   width tap target instead, grouped by how risky the action is. */
-.piece-card {
-  background: var(--studio-surface);
-  border: 1px solid var(--studio-line);
-  border-radius: var(--studio-radius);
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.piece-card-top {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-}
-
-.piece-row-thumb {
-  width: 64px;
-  height: 64px;
-  border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
-  background: var(--studio-bg);
-}
-
-.piece-row-thumb img,
-.piece-row-thumb video,
-.media-thumb-empty,
-.piece-row-thumb-empty {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.piece-card-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.piece-card-title {
-  font-weight: 600;
-  word-break: break-word;
-}
-
-.piece-card-title .status-pill {
-  margin-left: 8px;
-}
-
-.piece-card-meta {
-  color: var(--studio-ink-soft);
-  font-size: 15px;
-  margin-top: 4px;
-}
-
-.piece-card-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.piece-card-move {
-  display: flex;
-  gap: 8px;
-}
-
-.piece-card-move .btn {
-  flex: 1;
-}
-
-.piece-card-delete {
-  margin-top: 6px;
-  padding-top: 14px;
-  border-top: 1px solid var(--studio-line);
-}
-
-.status-pill {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--studio-line);
-  color: var(--studio-ink-soft);
-}
-
-.status-available {
-  background: #e2efe4;
-  color: #366043;
-}
-
-.status-sold {
-  background: #f2e3e0;
-  color: #8a4433;
-}
-
-.status-reserved {
-  background: #eee6d8;
-  color: #8a6c30;
-}
-
-.status-draft {
-  background: var(--studio-line);
-  color: var(--studio-ink-soft);
-}
-
-/* ---- piece form ---- */
-
-.piece-form-wrap {
-  display: flex;
-  flex-direction: column;
-}
-
-.piece-form {
-  background: var(--studio-surface);
-  border: 1px solid var(--studio-line);
-  border-radius: var(--studio-radius);
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  /* Room at the bottom so the last field isn't hidden behind the sticky
-     save bar — see .form-sticky-bar below. */
-  margin-bottom: 88px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-}
-
-.field span {
-  font-size: 14px;
-  color: var(--studio-ink-soft);
-}
-
-.field input,
-.field select,
-.field textarea {
-  padding: 12px;
-  border: 1px solid var(--studio-line);
-  border-radius: 8px;
-  /* 16px minimum — anything smaller triggers iOS's zoom-on-focus. */
-  font-size: 16px;
-  width: 100%;
-}
-
-.field-row {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-@media (min-width: 480px) {
-  .field-row {
-    flex-direction: row;
-  }
-}
-
-.field-hint {
-  font-size: 13px;
-  color: var(--studio-ink-soft);
-  margin: -8px 0 0;
-}
-
-.field-hint-warn {
-  color: var(--studio-danger);
-}
-
-.toggle-field {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  cursor: pointer;
-}
-
-.toggle-field input {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-}
-
-.size-section {
-  border-top: 1px solid var(--studio-line);
-  padding-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.media-section {
-  border-top: 1px solid var(--studio-line);
-  padding-top: 16px;
-}
-
-.media-error {
-  color: var(--studio-danger);
-  font-size: 15px;
-  margin: 8px 0 0;
-}
-
-.upload-notes {
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 14px;
-  color: var(--studio-ink-soft);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.drop-zone {
-  border: 2px dashed var(--studio-line);
-  border-radius: var(--studio-radius);
-  padding: 28px 16px;
-  text-align: center;
-  color: var(--studio-ink-soft);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.drop-zone-active {
-  border-color: var(--studio-accent);
-  background: #fbf3e6;
-}
-
-/* One photo per row on a phone — a caption field plus move buttons don't
-   fit in a narrow grid column. Two-up once there's room for it. */
-.media-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-  margin-top: 16px;
-}
-
-@media (min-width: 560px) {
-  .media-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-.media-tile {
-  border: 2px solid var(--studio-line);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--studio-bg);
-}
-
-.media-tile-cover {
-  border-color: var(--studio-accent);
-}
-
-.media-tile img,
-.media-tile video {
-  width: 100%;
-  height: 160px;
-  object-fit: cover;
-  display: block;
-}
-
-.media-tile-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-}
-
-.media-tile-body input {
-  padding: 10px;
-  border: 1px solid var(--studio-line);
-  border-radius: 8px;
-  font-size: 16px;
-}
-
-.media-tile-move {
-  display: flex;
-  gap: 8px;
-}
-
-.media-tile-move .btn {
-  flex: 1;
-}
-
-.media-tile-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* Fixed, not sticky: piece-form's padding would otherwise leave the bar
-   inset from the screen edges. Sits below .modal-backdrop's z-index so the
-   delete-photo confirm dialog still renders on top of it. */
-.form-sticky-bar {
+.sheet-backdrop {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 5;
-  background: var(--studio-surface);
-  border-top: 1px solid var(--studio-line);
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  inset: 0;
+  z-index: 15;
+  background: rgba(30, 26, 20, 0.4);
   display: flex;
+  align-items: flex-end;
   justify-content: center;
 }
 
-.form-actions {
-  display: flex;
-  gap: 10px;
+.sheet {
   width: 100%;
-  max-width: 640px;
+  max-width: 480px;
+  background: var(--studio-surface);
+  border-radius: 14px 14px 0 0;
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  animation: sheet-up 0.18s ease-out;
 }
 
-@media (min-width: 720px) {
-  .form-actions {
-    max-width: 720px;
-  }
-}
-
-.form-actions .btn {
-  flex: 1;
-}
-
-/* ---- inventory ---- */
-
-.inventory-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.inventory-header h1 {
-  margin: 0;
-}
-
-.inv-row-error {
-  color: var(--studio-danger);
-  font-size: 13px;
-  margin: 6px 0 0;
-}
-
-.inv-cell-label {
-  display: none;
-}
-
-/* Base state is hidden — the header carries this on desktop. The <699px
-   block below turns it back on for the stacked-card layout. Must come
-   before that block: media queries don't add specificity, so source order
-   is what decides which display wins. */
-.inv-cell-hint {
-  display: none;
-  font-size: 12px;
-  color: var(--studio-ink-soft);
-  margin-top: 4px;
-}
-
-/* Below ~700px this is Hajar's phone: a real HTML table can't fit six
-   columns, so it becomes one stacked card per piece instead — same
-   table/tr/td markup, just laid out as blocks. No horizontal scrolling. */
-@media (max-width: 699px) {
-  .inventory-table,
-  .inventory-table tbody,
-  .inventory-table tr,
-  .inventory-table td {
-    display: block;
-    width: 100%;
-  }
-
-  .inventory-table thead {
-    display: none;
-  }
-
-  .inventory-row {
-    background: var(--studio-surface);
-    border: 1px solid var(--studio-line);
-    border-radius: var(--studio-radius);
-    padding: 14px;
-    margin-bottom: 14px;
-  }
-
-  .inventory-table td {
-    padding: 8px 0;
-  }
-
-  .inventory-title-cell {
-    padding-top: 0;
-  }
-
-  .inventory-title {
-    font-weight: 600;
-    font-size: 17px;
-  }
-
-  .inv-cell-label {
-    display: block;
-    font-size: 14px;
-    color: var(--studio-ink-soft);
-    margin-bottom: 6px;
-  }
-
-  .inv-cell-hint {
-    display: block;
-  }
-
-  .inventory-remove-cell {
-    margin-top: 6px;
-    padding-top: 14px;
-    border-top: 1px solid var(--studio-line);
+@keyframes sheet-up {
+  from {
+    transform: translateY(12px);
   }
 }
 
-/* 700px and up: an actual table, tab order runs cell to cell across a row.
-   table-layout: fixed with explicit column widths keeps six columns inside
-   .studio's own width — no horizontal scrolling needed at any width this
-   layout is meant for. */
-@media (min-width: 700px) {
-  .inventory-table {
-    width: 100%;
-    table-layout: fixed;
-    border-collapse: collapse;
-  }
-
-  .inventory-table th {
-    text-align: left;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--studio-ink-soft);
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--studio-line);
-  }
-
-  .inventory-table td {
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--studio-line);
-    vertical-align: top;
-  }
-
-  .inventory-title {
-    font-weight: 600;
-    word-break: break-word;
-  }
-
-  .inventory-table th:nth-child(1),
-  .inventory-table td:nth-child(1) {
-    width: 22%;
-  }
-
-  .inventory-table th:nth-child(2),
-  .inventory-table td:nth-child(2) {
-    width: 14%;
-  }
-
-  .inventory-table th:nth-child(3),
-  .inventory-table td:nth-child(3) {
-    width: 13%;
-  }
-
-  .inventory-table th:nth-child(4),
-  .inventory-table td:nth-child(4) {
-    width: 23%;
-  }
-
-  .inventory-table th:nth-child(5),
-  .inventory-table td:nth-child(5) {
-    width: 14%;
-  }
-
-  .inventory-table th:nth-child(6),
-  .inventory-table td:nth-child(6) {
-    width: 14%;
-  }
-}
-
-.inventory-table input {
-  padding: 10px;
-  border: 1px solid var(--studio-line);
-  border-radius: 8px;
+.sheet-item {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  padding: 14px;
+  border: 0;
+  border-bottom: 1px solid var(--studio-line);
+  background: none;
   font-size: 16px;
-  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet-item:disabled {
+  opacity: 0.4;
+}
+
+.sheet-item-danger {
+  color: var(--studio-danger);
+}
+
+.sheet-cancel {
+  border-bottom: 0;
+  font-weight: 600;
+  text-align: center;
 }
 
 /* ---- confirm dialog ---- */
@@ -797,15 +843,19 @@ button, input, select, textarea {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  z-index: 10;
+  z-index: 16;
 }
 
 .modal-card {
   background: var(--studio-surface);
   border-radius: var(--studio-radius);
-  padding: 24px;
+  padding: 22px;
   max-width: 420px;
   width: 100%;
+}
+
+.modal-card h2 {
+  margin-top: 0;
 }
 
 .modal-actions {
@@ -813,4 +863,100 @@ button, input, select, textarea {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 16px;
+}
+
+/* ---- stock tab ---- */
+
+.inventory-view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.inventory-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.import-error {
+  color: var(--studio-danger);
+  margin: 0;
+}
+
+.inv-row-error {
+  color: var(--studio-danger);
+  font-size: 13px;
+  margin: 6px 0 0;
+}
+
+/* One stacked card per piece — six table columns never fit a phone, and the
+   column is phone width even on a laptop. Same markup, laid out as blocks. */
+.inventory-table,
+.inventory-table tbody,
+.inventory-table tr,
+.inventory-table td {
+  display: block;
+  width: 100%;
+}
+
+.inventory-table thead {
+  display: none;
+}
+
+.inventory-row {
+  background: var(--studio-surface);
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.inventory-table td {
+  padding: 8px 0;
+}
+
+.inventory-title-cell {
+  padding-top: 0;
+}
+
+.inventory-title {
+  font-weight: 600;
+  font-size: 17px;
+}
+
+.inv-cell-label {
+  display: block;
+  font-size: 14px;
+  color: var(--studio-ink-soft);
+  margin-bottom: 6px;
+}
+
+.inv-cell-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--studio-ink-soft);
+  margin-top: 4px;
+}
+
+.inventory-remove-cell {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--studio-line);
+}
+
+.inventory-table input {
+  padding: 10px;
+  border: 1px solid var(--studio-line);
+  border-radius: 8px;
+  font-size: 16px;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -2,11 +2,13 @@ import { useState, type FormEvent } from "react";
 
 type Props = {
   onUnlocked: () => void;
+  /** True when she was already in and the server dropped her. */
+  sessionEnded?: boolean;
 };
 
-// Full-screen gate. The password itself never leaves this form — it's POSTed
-// once and the server hands back a cookie, nothing else.
-export default function LockScreen({ onUnlocked }: Props) {
+// Full-screen gate, shown on every load. The password itself never leaves this
+// form — it's POSTed once and the server hands back a cookie, nothing else.
+export default function LockScreen({ onUnlocked, sessionEnded }: Props) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -22,6 +24,7 @@ export default function LockScreen({ onUnlocked }: Props) {
         body: JSON.stringify({ password }),
       });
       if (res.ok) {
+        setPassword("");
         onUnlocked();
         return;
       }
@@ -41,7 +44,11 @@ export default function LockScreen({ onUnlocked }: Props) {
     <div className="lock-screen">
       <form className="lock-card" onSubmit={handleSubmit}>
         <h1>Dot Designs Studio</h1>
-        <p className="lock-hint">Enter the studio password to continue.</p>
+        {sessionEnded ? (
+          <p className="lock-hint">Your session ended, sign in again.</p>
+        ) : (
+          <p className="lock-hint">Enter the studio password to continue.</p>
+        )}
         <label className="lock-label" htmlFor="studio-password">
           Password
         </label>
@@ -49,6 +56,7 @@ export default function LockScreen({ onUnlocked }: Props) {
           id="studio-password"
           type="password"
           autoFocus
+          autoComplete="current-password"
           value={password}
           onChange={e => setPassword(e.target.value)}
           className="lock-input"

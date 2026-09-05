@@ -1,8 +1,7 @@
-// Photo compression on upload. This exists because raw 12MP phone photos
-// going straight into IndexedDB will hit the browser storage quota after a
-// dozen shots, and it fails in a way Hajar can't diagnose — a "why didn't my
-// photo save" bug report with no clue attached. Shrinking and re-encoding on
-// the way in avoids that entirely.
+// Photo prep on the way to the server. A raw 12MP phone photo is 4-6MB, and
+// she posts from a phone on whatever signal she has — shrinking first is the
+// difference between a post that lands and a spinner she gives up on. The
+// shop never displays anything bigger than this anyway.
 
 export type CompressResult = {
   blob: Blob;
@@ -63,7 +62,21 @@ async function loadBitmap(file: File): Promise<ImageBitmap> {
   }
 }
 
-/** "4.2 MB" / "380 KB" — for the per-file saving line, not stored anywhere. */
+/**
+ * Safari usually converts HEIC to JPEG on its way out of the camera roll, but
+ * not on every version. When it doesn't, canvas can't decode it, the upload
+ * would be a file the shop can't show, and nothing on screen would say why.
+ */
+export function isHeic(file: File): boolean {
+  const type = file.type.toLowerCase();
+  if (type === "image/heic" || type === "image/heif") return true;
+  return /\.(heic|heif)$/i.test(file.name);
+}
+
+/** A video this big will crawl over a phone connection. Warn, don't block. */
+export const VIDEO_WARN_BYTES = 50 * 1024 * 1024;
+
+/** "4.2 MB" / "380 KB" — for the per-file line, not stored anywhere. */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
