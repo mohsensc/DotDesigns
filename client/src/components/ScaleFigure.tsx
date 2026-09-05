@@ -91,9 +91,25 @@ function describeAgainst(largestCm: number, reference: typeof HAND | typeof PERS
   const who = reference === HAND ? "a hand" : "a person";
   if (ratio > 0.85 && ratio < 1.15) return `the height of ${who}`;
   if (ratio <= 0.85) {
-    const frac = ratio <= 0.2 ? "a fifth" : ratio <= 0.35 ? "a third" : ratio <= 0.6 ? "half" : "most";
+    const frac = ratio <= 0.2 ? "a fifth" : ratio <= 0.35 ? "a third" : ratio <= 0.6 ? "half" : "three quarters";
     return `${frac} the height of ${who}`;
   }
+  if (ratio < 1.6) return `a little taller than ${who}`;
   const times = Math.round(ratio);
-  return times >= 2 ? `${times} times the height of ${who}` : `taller than ${who}`;
+  return `${times} times the height of ${who}`;
+}
+
+/**
+ * The same comparison as one sentence, for the grid card and the piece header —
+ * "Half the height of a person". This studio sells work whose whole
+ * question is how big it is, so the answer is printed everywhere a piece is,
+ * not only where there's room for the drawing. Null when the piece has no
+ * numeric size, same rule as the component above.
+ */
+export function scaleNote(size: Size | undefined): string | null {
+  const largest = largestDimensionCm(size);
+  if (largest == null) return null;
+  const reference = largest < HAND_CUTOFF_CM ? HAND : PERSON;
+  const phrase = describeAgainst(largest, reference);
+  return phrase.charAt(0).toUpperCase() + phrase.slice(1);
 }

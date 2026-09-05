@@ -41,3 +41,24 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* One focus ring for the whole site. Every route runs the dark ground, so a
+   gold ring reads on all of them; anything that needs its own gets it locally. */
+:focus-visible {
+  outline: 2px solid var(--dot-accent);
+  outline-offset: 3px;
+}
+
+/* Shared chrome metrics. These are lifted from the engine's topbar (see
+   scrub-engine.js and World.css) so the shop's bar and the film's bar are the
+   same row at every width — same insets, same pill heights, same logo size.
+   Change them here and both move together. */
+:root {
+  --dot-gutter: clamp(20px, 5vw, 64px);
+  --dot-bar-pad-y: clamp(14px, 2.4vw, 26px);
+  /* The logo sets the bar's height, so the bar's height is derivable — the
+     header band tucks under it and every sticky offset is measured from it. */
+  --dot-logo-h: clamp(46px, 5vw, 66px);
+  --dot-bar-h: calc(var(--dot-bar-pad-y) * 2 + var(--dot-logo-h) + 1px);
+  --dot-hairline: color-mix(in srgb, var(--dot-accent) 22%, transparent);
+}

@@ -1,119 +1,156 @@
-/* Tokens are set on .shop (see Shop.css) and inherit down the DOM tree, so
-   this file never needs to redefine them — it's only ever mounted inside
-   the shop grid. */
+/* One entry in the shop grid. Not a card: no panel, no shadow, no radius —
+   a photograph with its label under it, the way a wall label sits under a work. */
 
 .piece-card {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   text-decoration: none;
-  color: inherit;
+  color: var(--dot-ink);
 }
 
 .piece-card__media {
   position: relative;
+  /* The box is reserved before the file arrives, so nothing below it jumps. */
   aspect-ratio: 4 / 5;
   overflow: hidden;
-  background: color-mix(in srgb, var(--sh-ink) 6%, var(--sh-bg));
-  border: 1px solid color-mix(in srgb, var(--sh-accent) 16%, transparent);
+  background: var(--dot-bg-raised);
 }
 
 .piece-card__img {
-  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.6s ease, opacity 0.3s ease;
+  display: block;
+  transition: transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.4s ease;
 }
 
-.piece-card:hover .piece-card__img {
-  transform: scale(1.02);
-}
-
-.piece-card--sold .piece-card__img {
-  opacity: 0.45;
+@media (hover: hover) {
+  .piece-card:hover .piece-card__img {
+    transform: scale(1.03);
+  }
 }
 
 .piece-card__placeholder {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(
-    155deg,
-    color-mix(in srgb, var(--sh-accent) 8%, var(--sh-bg)),
-    var(--sh-bg)
-  );
 }
 
 .piece-card__placeholder-note {
   font-size: 0.66rem;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--sh-accent) 52%, transparent);
+  color: color-mix(in srgb, var(--dot-ink-soft) 85%, transparent);
 }
 
 .piece-card__status {
   position: absolute;
-  top: 14px;
-  left: 14px;
-  font-family: var(--sh-font-body);
-  font-size: 0.66rem;
-  letter-spacing: 0.18em;
+  left: clamp(14px, 4vw, 20px);
+  top: clamp(14px, 4vw, 20px);
+  padding: 6px 13px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--sh-ink);
-  padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--sh-ink) 40%, transparent);
-  background: color-mix(in srgb, var(--sh-bg) 70%, transparent);
+  color: var(--dot-ink);
+  background: color-mix(in srgb, var(--dot-bg) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 34%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+/* Sold work stays listed on purpose. The photograph is NOT dimmed — the page
+   says sold work is the clearest record of what the studio makes, and greying it
+   out would argue the opposite (and these stills are dark enough already that a
+   dim reads as a failed image). The pill and the quieter label carry the state. */
+.piece-card--sold .piece-card__title,
+.piece-card--sold .piece-card__price {
+  color: color-mix(in srgb, var(--dot-ink) 70%, transparent);
 }
 
 .piece-card__body {
-  padding: 16px 2px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-inline: var(--piece-card-inset, 0px);
+}
+
+.piece-card__meta {
+  margin: 0;
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dot-ink-soft);
 }
 
 .piece-card__title {
   margin: 0;
-  font-family: var(--sh-font-display);
-  font-weight: 500;
-  font-size: 1.08rem;
-  color: var(--sh-ink);
-  letter-spacing: 0.01em;
+  font-family: var(--dot-font-display);
+  font-weight: 400;
+  font-size: clamp(1.5rem, 4.6vw, 1.62rem);
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+  color: var(--dot-ink);
+  transition: color 0.25s ease;
 }
 
-.piece-card__meta {
-  margin: 6px 0 0;
-  font-family: var(--sh-font-body);
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--sh-ink-soft);
+.piece-card:hover .piece-card__title {
+  color: var(--dot-accent);
+}
+
+.piece-card__rule {
+  display: block;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--dot-hairline);
+}
+
+.piece-card__line {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .piece-card__price {
-  margin: 10px 0 0;
-  font-family: var(--sh-font-body);
-  font-size: 0.76rem;
-  letter-spacing: 0.08em;
-  color: var(--sh-accent);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--dot-ink);
 }
 
 .piece-card__size {
-  margin: 4px 0 0;
-  font-family: var(--sh-font-body);
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  color: var(--sh-ink-soft);
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--dot-ink-soft);
+  text-align: right;
+}
+
+/* The house signature: what the piece is roughly the height of, in words. */
+.piece-card__scale {
+  margin: 0;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: 0.98rem;
+  line-height: 1.3;
+  color: var(--dot-accent);
 }
 
 .piece-card__low-stock {
-  margin: 8px 0 0;
-  font-family: var(--sh-font-body);
+  margin: 0;
   font-size: 0.66rem;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--sh-accent);
+  color: var(--dot-accent);
 }
 
-.piece-card:focus-visible {
-  outline: 1px solid var(--sh-accent);
-  outline-offset: 4px;
+@media (prefers-reduced-motion: reduce) {
+  .piece-card__img {
+    transition: none;
+  }
+  .piece-card:hover .piece-card__img {
+    transform: none;
+  }
 }

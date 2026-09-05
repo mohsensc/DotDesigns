@@ -1,0 +1,224 @@
+/* ==========================================================================
+   Shared chrome — the topbar and footer every non-film route wears.
+
+   Every number in the topbar is the engine's, not a new one: bar padding and
+   gutter from .sw-topbar, the gold pill from .sw-topcta (10px/20px, .9rem/600),
+   the outlined pill from .dot-shop (9px/20px + a 1px gold border, which lands
+   at the same 41px), the nav pill from .sw-nav. See World.css.
+   ========================================================================== */
+
+.chrome {
+  min-height: 100vh;
+  background: var(--dot-bg);
+  color: var(--dot-ink);
+  font-family: var(--dot-font-body);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Topbar ------------------------------------------------------------------ */
+
+.chrome-top {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: var(--dot-bar-pad-y) var(--dot-gutter);
+  /* The film's bar is transparent over video. This page scrolls under its bar,
+     so it carries its own ground — dark enough to read over a photograph, thin
+     enough that the header band still shows through. */
+  background: color-mix(in srgb, var(--dot-bg) 82%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid color-mix(in srgb, var(--dot-accent) 16%, transparent);
+}
+
+.chrome-top__brand {
+  flex: 0 0 auto;
+  display: block;
+  line-height: 0;
+}
+
+.chrome-top__logo {
+  display: block;
+  /* Sized by HEIGHT, not width. The film's logo is fixed and overlays the
+     scene, so its 150px width costs nothing; this one sits inside a bar with a
+     ground and would make it 150px tall. Capping the height keeps the bar the
+     film's proportion and the lockup legible. Never filtered or recoloured. */
+  height: var(--dot-logo-h);
+  width: auto;
+  max-width: 42vw;
+}
+
+.chrome-top__nav {
+  /* Exactly one auto-margin pair, same trick as the film: the nav absorbs the
+     free space either side, so it centres without a hand-tuned offset. */
+  margin-inline: auto;
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--dot-bg) 58%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.chrome-top__navitem {
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  text-decoration: none;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--dot-ink) 76%, transparent);
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.chrome-top__navitem:hover {
+  color: var(--dot-ink);
+}
+
+.chrome-top__navitem.is-active {
+  color: var(--dot-bg);
+  background: var(--dot-accent);
+  font-weight: 500;
+}
+
+.chrome-top__cta {
+  flex: 0 0 auto;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--dot-bg);
+  background: var(--dot-accent);
+  transition: filter 0.2s ease;
+}
+
+.chrome-top__cta:hover {
+  filter: brightness(1.08);
+}
+
+.chrome-top__cta-short {
+  display: none;
+}
+
+/* The mobile stand-in for the nav pill. Same metrics as the film's Shop pill. */
+.chrome-top__ghost {
+  display: none;
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--dot-ink);
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--dot-bg) 55%, transparent);
+  backdrop-filter: blur(10px);
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.chrome-top__ghost:hover {
+  color: var(--dot-accent);
+  border-color: color-mix(in srgb, var(--dot-accent) 70%, transparent);
+}
+
+/* Under 640 the film drops its own CTA and shrinks the pill; the shop keeps the
+   consultation, because no closing scene carries it here. Shorter label, tighter
+   metrics, smaller logo — the row has to hold three things at 390. */
+@media (max-width: 640px) {
+  .chrome-top {
+    gap: 10px;
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  .chrome-top__nav {
+    display: none;
+  }
+  .chrome-top__ghost {
+    display: block;
+    margin-left: auto;
+  }
+  .chrome-top__cta {
+    font-size: 0.76rem;
+    padding: 9px 13px;
+  }
+  .chrome-top__cta-long {
+    display: none;
+  }
+  .chrome-top__cta-short {
+    display: inline;
+  }
+}
+
+/* Footer ------------------------------------------------------------------ */
+
+.chrome-foot {
+  margin-top: auto;
+  padding: clamp(40px, 6vw, 64px) var(--dot-gutter) clamp(36px, 5vw, 60px);
+  border-top: 1px solid var(--dot-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.chrome-foot__logo {
+  width: 112px;
+  height: auto;
+  display: block;
+}
+
+.chrome-foot__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 0.86rem;
+  font-weight: 300;
+  color: var(--dot-ink-soft);
+}
+
+.chrome-foot__lines a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.chrome-foot__lines a:hover {
+  color: var(--dot-accent);
+}
+
+.chrome-foot__place {
+  margin: 0;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--dot-ink-soft) 85%, transparent);
+}
+
+@media (min-width: 900px) {
+  .chrome-foot {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 40px;
+  }
+  .chrome-foot__lines {
+    flex-direction: row;
+    gap: 40px;
+  }
+}
+
+/* A piece page pins its buy bar to the bottom on phones. Nothing may sit under
+   it, so the footer keeps clear of the bar plus the home indicator. */
+@media (max-width: 899px) {
+  .chrome--footer-gap .chrome-foot {
+    padding-bottom: calc(96px + max(24px, env(safe-area-inset-bottom)));
+  }
+}

@@ -216,10 +216,7 @@ html.dot-world body::-webkit-scrollbar {
   .sw-root .sw-brand {
     width: 0;
   }
-  /* Nav and CTA are both gone at this width, taking the only auto margin with
-     them, so Shop has to push itself to the right edge. */
   .dot-shop {
-    margin-left: auto;
     font-size: 0.82rem;
     padding: 9px 16px;
   }
@@ -297,5 +294,100 @@ html.dot-world body::-webkit-scrollbar {
   }
   .dot-loader__bar span {
     transition: none;
+  }
+}
+
+/* Phones --------------------------------------------------------------------
+   The engine already collapses its own chrome at 860px (topbar wraps, the stops
+   become a swipeable row, copy anchors to the bottom inside the safe area). What
+   it can't know about is this page's three overlaid pieces: the real logo
+   lockup, the Shop pill and the sound toggle. */
+
+@media (max-width: 860px) {
+  /* The nav is a full-width swipeable row on its own line down here, so the auto
+     margin that centres the desktop pill has to go — it would shove the row's
+     first stop into the middle and hide "Arrival" off the left edge. */
+  .sw-root .sw-nav {
+    margin-inline: 0;
+  }
+  /* The nav is on its own row from here down, and it carried the topbar's only
+     auto margin. Without this the actions pack against the left of a 768px bar
+     with the right half empty. */
+  .dot-shop {
+    margin-left: auto;
+  }
+  /* Clear the notch: the topbar's own top padding already does, and the lockup
+     is a separate fixed element that has to match it. */
+  .dot-brand {
+    top: calc(clamp(10px, 3vw, 18px) + env(safe-area-inset-top));
+    left: clamp(14px, 4vw, 24px);
+  }
+  /* The lockup is a full mark + wordmark + descriptor, so it is 0.68x as tall as
+     it is wide — at 118px that is 80px, which ran straight through the stops row
+     on the topbar's second line. 84px is the width at which the two clear. */
+  .dot-brand__logo {
+    width: 84px;
+  }
+  /* The invisible brand is a spacer, and down here it has to spare a height as
+     well as a width: it is the only thing holding the topbar's first row open to
+     the size of a logo that is drawn outside the topbar entirely. Track
+     .dot-brand__logo's rendered height (84 x 0.68) or the rows collide again. */
+  .sw-root .sw-brand {
+    width: 84px;
+    height: 58px;
+  }
+  /* Bottom-right is where the copy block now lives, so the toggle drops into the
+     strip below it, beside the scroll hint. Smaller, since it's chrome and the
+     film is the point. */
+  html.dot-world .dot-sound {
+    width: 38px;
+    height: 38px;
+    right: clamp(14px, 4vw, 24px);
+    bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+/* One row of chrome only. Below this the topbar CTA is the expendable one — it's
+   a shortened duplicate of the button the closing scene already carries, whereas
+   Shop appears nowhere else. */
+@media (max-width: 640px) {
+  .dot-brand__logo {
+    width: 76px;
+  }
+  .sw-root .sw-brand {
+    width: 76px;
+    height: 52px;
+  }
+}
+
+/* Landscape phone: the copy takes the whole height, so the hint and the toggle
+   would sit on top of it. The engine drops the hint; drop the toggle with it. */
+@media (max-width: 900px) and (max-height: 520px) and (orientation: landscape) {
+  /* Landscape gives the copy the whole lower half, so bottom-right is taken.
+     The toggle goes up under the Shop pill instead. */
+  html.dot-world .dot-sound {
+    top: 76px;
+    bottom: auto;
+    right: calc(8px + env(safe-area-inset-right));
+  }
+  .dot-brand__logo {
+    width: 72px;
+  }
+  .sw-root .sw-brand {
+    width: 72px;
+    height: 49px;
+  }
+}
+
+/* Loader: the same safe-area treatment, and a logo that doesn't fill a 390px
+   screen edge to edge. */
+@media (max-width: 640px) {
+  .dot-loader {
+    padding: calc(24px + env(safe-area-inset-top)) 24px
+      calc(24px + env(safe-area-inset-bottom));
+    gap: 18px;
+  }
+  .dot-loader__logo {
+    width: 132px;
   }
 }

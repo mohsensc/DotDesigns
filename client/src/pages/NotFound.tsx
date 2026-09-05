@@ -1,33 +1,26 @@
 import { Link } from "react-router-dom";
-import Brand from "../components/Brand.tsx";
+import { useDocumentTitle } from "../lib/use-document-title";
+import SiteChrome from "../components/SiteChrome.tsx";
 import "./NotFound.css";
 
 export default function NotFound() {
+  useDocumentTitle("Not found");
+
   return (
-    <main className="nf">
-      <div className="nf__field" />
-      <div className="nf__frame" />
-
-      <header className="nf__nav">
-        <Brand />
-      </header>
-
-      <section className="nf__content">
-        <p className="eyebrow eyebrow--gold">Error · Not Found</p>
-        <h1 className="nf__code">404</h1>
-        <p className="nf__lede">
-          This piece hasn&rsquo;t been <em>cast</em> yet.
-        </p>
-        <Link to="/" className="enter">
-          <span className="enter__label">Return to the Cover</span>
-          <span className="enter__rule" />
-          <span className="enter__arrow">&rarr;</span>
+    <SiteChrome className="nf">
+      <p className="nf__eyebrow">Error · Not found</p>
+      <h1 className="nf__code">404</h1>
+      <p className="nf__lede">
+        This piece hasn&rsquo;t been <em>cast</em> yet.
+      </p>
+      <div className="nf__actions">
+        <Link to="/" className="nf__btn nf__btn--primary">
+          Back to the gallery
         </Link>
-      </section>
-
-      <footer className="nf__footer">
-        <span className="eyebrow">N&ordm; 04 — MMXXVI · London</span>
-      </footer>
-    </main>
+        <Link to="/shop" className="nf__btn nf__btn--quiet">
+          See what's available
+        </Link>
+      </div>
+    </SiteChrome>
   );
 }

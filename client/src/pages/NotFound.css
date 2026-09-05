@@ -1,77 +1,79 @@
+/* 404. Same ground as everything else — a dead end shouldn't look like a
+   different website. */
+
 .nf {
-  position: relative;
-  width: 100%;
-  min-height: 100vh;
-  overflow: hidden;
-  color: var(--ink);
-  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.nf__field {
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(105deg, var(--cream-1) 0%, var(--cream-2) 100%);
-  z-index: 0;
-}
-
-.nf__frame {
-  position: absolute;
-  inset: clamp(16px, 1.7vw, 24px);
-  border: 1px solid rgba(173, 140, 79, 0.5);
-  z-index: 4;
-  pointer-events: none;
-}
-
-.nf__nav {
-  position: absolute;
-  top: clamp(40px, 6vh, 56px);
-  left: clamp(40px, 4.4vw, 64px);
-  z-index: 5;
-}
-
-.nf__content {
-  position: relative;
-  z-index: 5;
-  text-align: center;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 0 24px;
+  align-items: flex-start;
+  gap: 14px;
+  padding: clamp(56px, 14vw, 140px) var(--dot-gutter) clamp(56px, 12vw, 140px);
+}
+
+.nf__eyebrow {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--dot-accent);
 }
 
 .nf__code {
-  margin: 18px 0 0;
-  font-size: clamp(96px, 16vw, 200px);
-  font-weight: 300;
+  margin: 0;
+  font-family: var(--dot-font-display);
+  font-weight: 400;
+  font-size: clamp(5rem, 22vw, 10rem);
   line-height: 1;
-  letter-spacing: -0.02em;
-  color: var(--ink);
+  margin-bottom: 4px;
+  letter-spacing: -0.03em;
+  color: var(--dot-ink);
 }
 
 .nf__lede {
-  margin: 14px 0 0;
-  font-size: 22px;
-  font-weight: 400;
-  color: var(--muted);
+  margin: 0;
+  font-size: clamp(1.05rem, 4.4vw, 1.4rem);
+  font-weight: 300;
+  color: var(--dot-ink-soft);
 }
 
 .nf__lede em {
+  font-family: "Cormorant Garamond", Georgia, serif;
   font-style: italic;
-  color: var(--gold);
+  color: var(--dot-accent);
 }
 
-.nf__content .enter {
-  width: auto;
-  min-width: 320px;
-  margin-top: 44px;
+.nf__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
 }
 
-.nf__footer {
-  position: absolute;
-  bottom: clamp(40px, 6vh, 52px);
-  left: clamp(40px, 4.4vw, 64px);
-  z-index: 5;
+.nf__btn {
+  padding: 14px 26px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: filter 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.nf__btn--primary {
+  color: var(--dot-bg);
+  background: var(--dot-accent);
+}
+
+.nf__btn--primary:hover {
+  filter: brightness(1.08);
+}
+
+.nf__btn--quiet {
+  color: var(--dot-ink);
+  border-color: color-mix(in srgb, var(--dot-accent) 40%, transparent);
+}
+
+.nf__btn--quiet:hover {
+  color: var(--dot-accent);
+  border-color: var(--dot-accent);
 }

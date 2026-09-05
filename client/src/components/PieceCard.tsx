@@ -3,9 +3,10 @@ import { useEffect, useState } from "react";
 import { coverOf, formatPrice, formatSize, altOf, CATEGORY_LABELS, STATUS_LABELS, type Piece } from "../lib/catalog";
 import { resolveMedia } from "../lib/catalog-store";
 import { loadInventory, type StockEntry } from "../lib/inventory";
+import { scaleNote } from "./ScaleFigure";
 import "./PieceCard.css";
 
-export default function PieceCard({ piece }: { piece: Piece }) {
+export default function PieceCard({ piece, eager }: { piece: Piece; eager?: boolean }) {
   const cover = coverOf(piece);
   const src = cover ? resolveMedia(cover) : "";
   const [stock, setStock] = useState<StockEntry | undefined>(undefined);
@@ -28,28 +29,48 @@ export default function PieceCard({ piece }: { piece: Piece }) {
   const price = stock?.price ?? piece.price;
   const lowStock = !!stock && !stock.soldOut && stock.quantity > 0 && stock.quantity <= 2;
   const size = formatSize(piece);
+  const scale = scaleNote(piece.size);
 
   return (
     <Link to={`/shop/${piece.slug}`} className={`piece-card${sold ? " piece-card--sold" : ""}`}>
       <div className="piece-card__media">
         {src ? (
-          <img className="piece-card__img" src={src} alt={altOf(cover, piece)} loading="lazy" />
+          <img
+            className="piece-card__img"
+            src={src}
+            alt={altOf(cover, piece)}
+            // The catalog carries natural pixel size only when the studio knew
+            // it. When it does, the browser gets the real ratio; either way the
+            // CSS aspect box below has already reserved the space.
+            width={cover?.width}
+            height={cover?.height}
+            loading={eager ? "eager" : "lazy"}
+            decoding="async"
+          />
         ) : (
           // A piece with no photo yet.
           <div className="piece-card__placeholder">
-            {!cover && <span className="piece-card__placeholder-note">Photograph coming</span>}
+            <span className="piece-card__placeholder-note">Photograph coming</span>
           </div>
         )}
         {sold && <span className="piece-card__status">{statusLabel}</span>}
       </div>
+
       <div className="piece-card__body">
-        <h3 className="piece-card__title">{piece.title}</h3>
         <p className="piece-card__meta">
           {CATEGORY_LABELS[piece.category]}
           {piece.year ? ` · ${piece.year}` : ""}
         </p>
-        <p className="piece-card__price">{formatPrice(price)}</p>
-        {size && <p className="piece-card__size">{size}</p>}
+        {/* h2, not h3: the grid has no intervening heading between the page's
+            h1 and each card, so h3 skipped a level (Lighthouse's
+            heading-order audit). */}
+        <h2 className="piece-card__title">{piece.title}</h2>
+        <span className="piece-card__rule" aria-hidden="true" />
+        <p className="piece-card__line">
+          <span className="piece-card__price">{formatPrice(price)}</span>
+          {size && <span className="piece-card__size">{size}</span>}
+        </p>
+        {scale && <p className="piece-card__scale">{scale}</p>}
         {lowStock && (
           <p className="piece-card__low-stock">{stock!.quantity === 1 ? "Last one" : `${stock!.quantity} left`}</p>
         )}
