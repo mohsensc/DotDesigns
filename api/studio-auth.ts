@@ -1,18 +1,28 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
-  STUDIO_COOKIE_MAX_AGE,
   STUDIO_COOKIE_NAME,
-  expectedStudioToken,
+  issueStudioToken,
   readCookie,
   safeEqual,
+  verifyStudioToken,
 } from "./_lib/studio-session";
 
 // Single security control for the studio: one password, in the Vercel env var
 // PASSWORD, never in this codebase. If it isn't set, this fails closed — no
 // path in here authenticates anyone without it.
 //
-// The HMAC/cookie mechanics live in api/_lib/studio-session.ts so other
-// endpoints can check "is this request unlocked" too.
+//   GET             -> is this browser unlocked?
+//   POST {password} -> unlock, set the cookie
+//   POST ?logout=1  -> clear it
+//
+// The cookie has no Max-Age on purpose: closing Safari should forget the
+// studio, the same way closing a bank tab does. The token expires eight hours
+// after login regardless.
+//
+// The HMAC mechanics live in api/_lib/studio-session.ts so other endpoints can
+// check "is this request unlocked" too.
+
+const CLEARED = `${STUDIO_COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
 
 function readPassword(req: VercelRequest): string {
   const body = req.body;
@@ -30,7 +40,19 @@ function readPassword(req: VercelRequest): string {
   return "";
 }
 
+function wantsLogout(req: VercelRequest): boolean {
+  if (req.method === "DELETE") return true;
+  const raw = req.query.logout;
+  return !!(Array.isArray(raw) ? raw[0] : raw);
+}
+
 export default function handler(req: VercelRequest, res: VercelResponse) {
+  if (wantsLogout(req)) {
+    res.setHeader("Set-Cookie", CLEARED);
+    res.status(200).json({ unlocked: false });
+    return;
+  }
+
   const password = process.env.PASSWORD;
   if (!password) {
     // Never authenticate anyone when the site isn't configured yet.
@@ -40,7 +62,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "GET") {
     const cookie = readCookie(req, STUDIO_COOKIE_NAME);
-    const unlocked = !!cookie && safeEqual(cookie, expectedStudioToken(password));
+    const unlocked = !!cookie && verifyStudioToken(cookie, password);
     res.status(200).json({ unlocked });
     return;
   }
@@ -51,15 +73,14 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       res.status(401).json({ error: "Wrong password." });
       return;
     }
-    const token = expectedStudioToken(password);
     res.setHeader(
       "Set-Cookie",
-      `${STUDIO_COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${STUDIO_COOKIE_MAX_AGE}`,
+      `${STUDIO_COOKIE_NAME}=${issueStudioToken(password)}; HttpOnly; Secure; SameSite=Lax; Path=/`,
     );
     res.status(200).json({ unlocked: true });
     return;
   }
 
-  res.setHeader("Allow", "GET, POST");
+  res.setHeader("Allow", "GET, POST, DELETE");
   res.status(405).json({ error: "method not allowed" });
 }

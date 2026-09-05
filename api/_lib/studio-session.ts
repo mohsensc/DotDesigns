@@ -1,19 +1,26 @@
 // Shared studio session logic, lifted out of api/studio-auth.ts so other
-// endpoints (e.g. inventory writes) can check "is this request unlocked"
-// without duplicating the cookie/HMAC logic.
+// endpoints (catalog and inventory writes) can check "is this request
+// unlocked" without duplicating the cookie/HMAC logic.
 //
-// The cookie doesn't hold the password. It holds an HMAC of a fixed label,
-// keyed by PASSWORD — a token that only a server holding PASSWORD could have
-// produced, so it can't be forged by copying an old cookie value around.
+// The cookie doesn't hold the password. It holds "<issuedAt>.<hmac>", where the
+// HMAC is over that issuedAt keyed by PASSWORD — so only a server holding
+// PASSWORD could have minted it, and the timestamp is part of what's signed,
+// which is what lets it expire. The old token was an HMAC of a fixed label:
+// one value, valid forever, on every device that ever logged in.
 
 import type { VercelRequest } from "@vercel/node";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const STUDIO_COOKIE_NAME = "dot_studio_auth";
-export const STUDIO_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+/** Hard expiry. She works in sittings, not shifts. */
+export const STUDIO_SESSION_MS = 8 * 60 * 60 * 1000;
 
-export function expectedStudioToken(password: string): string {
-  return createHmac("sha256", password).update("dot-studio-session").digest("hex");
+function sign(password: string, issuedAt: number): string {
+  return createHmac("sha256", password).update(`dot-studio:${issuedAt}`).digest("hex");
+}
+
+export function issueStudioToken(password: string, issuedAt: number = Date.now()): string {
+  return `${issuedAt}.${sign(password, issuedAt)}`;
 }
 
 export function safeEqual(a: string, b: string): boolean {
@@ -21,6 +28,18 @@ export function safeEqual(a: string, b: string): boolean {
   const bufB = Buffer.from(b);
   if (bufA.length !== bufB.length) return false;
   return timingSafeEqual(bufA, bufB);
+}
+
+/** Signature first, then age — an unsigned token's timestamp means nothing. */
+export function verifyStudioToken(token: string, password: string, now: number = Date.now()): boolean {
+  const dot = token.indexOf(".");
+  if (dot <= 0) return false;
+  const issuedAt = Number(token.slice(0, dot));
+  if (!Number.isSafeInteger(issuedAt)) return false;
+  if (!safeEqual(token.slice(dot + 1), sign(password, issuedAt))) return false;
+  // A clock skewed into the future would otherwise hand out a longer session.
+  if (issuedAt > now + 60_000) return false;
+  return now - issuedAt < STUDIO_SESSION_MS;
 }
 
 export function readCookie(req: VercelRequest, name: string): string | undefined {
@@ -35,12 +54,12 @@ export function readCookie(req: VercelRequest, name: string): string | undefined
 }
 
 /**
- * True when the request carries a valid studio session cookie. False
- * whenever PASSWORD isn't set — this fails closed, same as studio-auth.
+ * True when the request carries a valid, unexpired studio session cookie.
+ * False whenever PASSWORD isn't set — fails closed, same as studio-auth.
  */
 export function isUnlockedRequest(req: VercelRequest): boolean {
   const password = process.env.PASSWORD;
   if (!password) return false;
   const cookie = readCookie(req, STUDIO_COOKIE_NAME);
-  return !!cookie && safeEqual(cookie, expectedStudioToken(password));
+  return !!cookie && verifyStudioToken(cookie, password);
 }
