@@ -62,68 +62,93 @@ until the visitor asks for it. See `docs/audio.md` for what it is and how it was
 `client/src/lib/scrub-engine.js` is a framework-agnostic, zero-dependency vanilla
 engine. It builds its own DOM and injects its own namespaced CSS into a container.
 `World.tsx` mounts it from a `useEffect` via `window.mountScrollWorld(container,
-CONFIG)` and guards against React StrictMode's double-mount with a
-`data-sw-mounted` flag (the engine exposes no destroy handle). Theme tokens
-(`--sw-bg`, `--sw-ink`, `--sw-accent`, fonts) are overridden in
-`client/src/pages/World.css`; the engine wraps its defaults in `@layer sw`, so the
-page's unlayered rules win.
+CONFIG)`, guards StrictMode's double-mount with a `data-sw-mounted` flag, and
+calls the returned `destroy()` on unmount. Theme tokens (`--sw-bg`, `--sw-ink`,
+`--sw-accent`, fonts) live in `client/src/pages/World.css`; the engine wraps its
+defaults in `@layer sw`, so the page's unlayered rules win.
 
 ### Local extensions
 
-Additions to the original engine. All are opt-in, and it behaves exactly as
-originally documented when they are omitted.
+Additions to the original engine. All opt-in; it behaves as originally documented
+when they're omitted.
 
-- **`preload: true`** — fetch every clip at mount rather than lazily near the
-  viewport, and report `onProgress(settled, total)` / `onReady()`. `World.tsx`
-  holds a branded loading screen and locks the document until `onReady`, so the
-  site is never handed over with the scroll animation still missing. A 30s stall
-  timer reveals the page anyway if a clip never lands, rather than locking the
-  visitor out; those scenes fall back to their stills.
-- **`snap: true`** — magnetic stations. Scrolling stays native and one to one:
-  the wheel and the finger drive the camera while the gesture is happening. When
-  the gesture and its momentum stop, the page eases onto the nearest station, so
-  nobody is left parked mid-flight or mid-dissolve. Keys are the exception — an
-  arrow or page key is a discrete request, so it steps station to station.
-- **`stepScale`** — multiplier on how long those discrete steps take. 1 is the
-  engine default; the site runs 4.
-- **`hold: 0..0.8` plus a per-section `settle`** — a scene's scroll range becomes
-  three phases: fly in to the `settle` frame, park there while the copy is read
-  (this is the station), then release the remaining tail as the visitor scrolls
-  away. `settle` matters because this is one continuous take: each clip spends its
-  last beat gliding toward the *next* room, so its final frame is a doorway, not a
-  destination. Stations are the film's first frame plus each scene's settle —
-  later scenes contribute no opening station, since each opens on the frame its
-  predecessor closed on.
-- **Per-section `range: [start, end]`** — the slice of a clip a section plays, as
-  fractions of duration. Lets one continuous take be split across several sections
-  without re-encoding; the blob is fetched once and shared between them.
-- **Per-section `intro`** — a second copy block shown while the scene is still on
-  its opening frame and retired as the flight starts, so the landing scene can
-  greet before the section's own copy lands with the camera.
-- **`route: false` / `progress: false`** — drop the right-hand route rail and the
-  hairline progress bar. Both read as scrollbars; the site runs without either,
-  and hides the native scrollbar too (`World.css`), since the stations own the
-  scroll position.
+- **`preload` / `preloadGate: n`** — fetch clips at mount, reporting `onProgress`
+  / `onReady` so `World.tsx` can hold its loading screen. The gate waits on the
+  first n clips; the rest start once `onReady` fired, so they never compete with
+  it. A 30s stall timer reveals anyway rather than locking the visitor out.
+- **`snap` / `stepScale`** — magnetic stations. Scrolling stays native and one to
+  one; when the gesture and its momentum stop the page eases onto the nearest
+  station. Keys are the exception — an arrow steps station to station, at
+  `stepScale` pace. Touch disarms the magnet for the whole gesture and re-arms on
+  lift, so it never pulls against a finger still down.
+- **`hold` + per-section `settle`** — a scene's range becomes fly in / park on
+  `settle` (the station, where the copy is read) / release the tail. It matters
+  because this is one continuous take: each clip's last beat glides toward the
+  *next* room, so its final frame is a doorway, not a destination.
+- **Per-section `range`** — the slice of a clip a section plays, so one take can be
+  split across sections without re-encoding; the blob is fetched once.
+- **Per-section `intro`** — a second copy block held on the scene's opening frame,
+  so the landing scene can greet before the camera lands.
+- **`route: false` / `progress: false`** — both read as scrollbars; drop them.
+- **`mobile: {...}` + `rangeMobile`/`settleMobile`/`scrollMobile`** — see below.
+- **CTA routing** — a same-origin CTA href emits `scrollworld:navigate` instead of
+  following the link; `World.tsx` turns that into a react-router navigate, so the
+  shop CTAs don't reload the document and drop the whole film.
+- **`destroy()`** — listeners are on the window, the DOM isn't. An SPA must call it
+  on unmount or the magnet keeps driving the next route's scroll.
+
+### Two variants, one page
+
+Coarse pointer or <= 860px gets the mobile variant: `clipMobile`, `stillMobile`,
+and the `mobile` block shadowing `hold`/`diveScroll`/`crossfade`/`stepScale`/
+`lerp`/`magnetDelay`/`magnetScale`/`preloadGate`. Everything derived from those is
+live, so **crossing 860px on a desktop resize switches in place**: tear down the
+decoders, swap clip + poster + range + settle, relayout, restore the camera to the
+same *fraction of the same scene*. Scroll pixels don't survive that — the mobile
+variant gives scenes different widths, so the stations move. Debounced 160ms; a
+URL-bar height change never crosses the breakpoint, so it never triggers. A
+missing mobile poster falls back to the desktop still.
+
+### Measured (Chrome, 4x CPU throttle, scripted scroll, frame intervals)
+
+- **read() write-guarding + scoped `will-change`** (skip unchanged per-frame style
+  writes; promote only on-screen scenes). 1440x900: p50 16.1 -> 8.3ms, p95 33-48 ->
+  18-25ms, frames over 32ms 23-40 -> 6-14 per 6s pass.
+- **Desktop encode: 1080p kept, 1440p (`-hd`) rejected.** With all five legs heavy:
+  1080p p50 8.3 / p95 18-25 / 6-14 long frames; 1440p p50 16.3 / p95 25-33 / 12-21.
+  One 1440p leg among 1080p neighbours is free — it's the whole-film decoder load
+  that breaks the budget, plus ~24MB a clip against ~15MB. (Frame times measured on
+  1440p upscales of the masters, before the real `-hd` set existed; right pixel
+  count and bitrate, wrong detail. Worth one re-run when all five land.)
+- **Mobile encode: 720-wide kept, 1080-wide rejected.** 390x844: medians tie (both
+  hit vsync), the tail doesn't — p99 26-33 vs 29-42ms, worst frame 106 vs 445ms —
+  and 720 is 46% of the bytes.
+- **Mobile gate: reveal after 2 clips.** At 4 Mbit, reveal 18.2s vs 30.8s waiting
+  for all four; the film completes at 30.8s either way. 41% off time-to-first-
+  scroll. The risk is reaching scene 3 inside that 12.5s window, where the fallback
+  is that scene's still — a real frame of the right room, not a blank.
+- **Seams unchanged.** Shots 18px either side of all four seams, desktop and
+  mobile, magnet stubbed out (it otherwise drags the probe onto a station).
+  Against the pre-change build, four of the eight desktop frames are pixel-identical
+  and the rest differ by under an LSB (PSNR 104-107dB).
+- **Lenis rejected without a branch.** It drives scroll from its own rAF loop — a
+  second frame loop — and would fight `tweenTo`'s `scrollTo` and the native-scroll
+  magnet. Structural conflict, not a frame-time question.
 
 ### Picking a `settle`: mind the keyframes
 
 A paused, scrubbed video paints the keyframe **at or before** the requested time.
-These clips carry one every 0.333s, so the picture steps in third-of-a-second
-jumps and a `settle` does not necessarily show the frame you asked for.
-
-This bites. Targeting 6.6s in `gallery.mp4` — where the alabaster figure first
-stands clear — renders 6.334 instead, which is still the plaster monolith with no
-figure in shot at all. When choosing a settle point, check the preceding keyframe,
-not just the frame you want, and land inside a step rather than on its edge.
+The desktop clips carry one every 0.333s, so the picture steps in third-of-a-second
+jumps and a `settle` does not necessarily show the frame you asked for. Targeting
+6.6s in `gallery.mp4` renders 6.334 — still the plaster monolith, no figure in
+shot. Check the preceding keyframe and land inside a step, not on its edge. The
+mobile encodes are `-g 4`, so they step finer.
 
 ## The film
 
-Scene posters and camera clips live in `client/public/world/`:
-
-- `client/public/world/<id>.webp` — scene still / poster
-- `client/public/world/vid/<id>.mp4` — the scrubbed camera clip
-
-Four clips — `arrival, gallery, atelier, materials` — carry five sections.
+Posters and clips live in `client/public/world/`: `<id>.webp` + `vid/<id>.mp4`
+for desktop, `<id>-m.webp` + `vid/<id>-m.mp4` (native 9:16, 720 wide, `-g 4`) for
+the mobile variant. Four clips — `arrival, gallery, atelier, materials` — carry five sections.
 `atelier.mp4` is one continuous 9.96s take that tracks the gold wave wall before
 passing through a doorway into the studio, so it is read twice over complementary
 `range` windows split at 0.56 (the last frame before the doorway appears): **The
@@ -131,12 +156,20 @@ Wall** `[0, 0.56]` and **The Studio** `[0.56, 1]`. Their posters are
 `atelier.webp` and `studio.jpg`, the latter cut from the split frame so the two
 scenes meet on the same image and the seam is invisible.
 
-Clips are produced with the camera-clip pipeline: each scene is generated as a cohesive render, then a seamless camera clip is rendered
-flying from outside the scene into its interior (native resolution, `crf ~20`,
-`-g 8`, `+faststart`, no audio). The engine loads each clip as a Blob and scrubs
-`currentTime` against scroll, so it does not depend on HTTP byte-range support.
-Drop new files into the paths above; until they exist the site still runs — the
-engine tolerates missing clips, so the poster shows and scenes cross-dissolve.
+Clips come from the camera-clip pipeline: a cohesive scene render, then a seamless
+camera clip flying from outside into the interior (`crf ~20`, `-g 8`, `+faststart`,
+no audio; 1080p desktop, 720-wide `-g 4` mobile). The engine loads each as a Blob
+and scrubs `currentTime`, so it doesn't need HTTP byte-range support. Drop new
+files in and they're picked up; until they exist the site still runs — a missing
+clip falls back to its poster, a missing mobile poster to the desktop still.
 
-`client/public/` is copied into `client/dist/` by Vite at build time, so these
-assets ship with the static build served by Vercel.
+`client/public/` is copied into `client/dist/` by Vite, so these assets ship with
+the static build served by Vercel.
+
+## What's still broken
+
+- **Mobile frame times were measured on proxies.** The portrait cut landed after
+  the numbers above were taken (9:16 centre crops at the same resolution and
+  GOP). Right decode cost, wrong framing; re-check seams on a real phone.
+- **`materials-m` has a soft dissolve at ~4.75s**, same room, same light. Better
+  of two takes.

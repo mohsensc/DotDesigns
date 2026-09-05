@@ -37,8 +37,20 @@
          Falls back to the desktop `clip` if no mobile variant is given.
        - uses `stillMobile` as the scene poster when provided (pair it with native 9:16
          clipMobile renders so the poster matches the portrait video's first frame instead
-         of flashing from a landscape crop). Chosen once at mount; a desktop resize into
-         phone width keeps the desktop poster (clips still switch via isMobile()).
+         of flashing from a landscape crop).
+       - SWITCHES LIVE. Crossing 860px on a desktop resize swaps every scene's clip,
+         poster, range, settle and pacing to the other variant, keeping the camera on
+         the same fraction of the same scene so the picture doesn't jump. Debounced;
+         a URL-bar height change never crosses the breakpoint and never triggers it.
+     Per-variant config:
+       mobile: { hold, diveScroll, connScroll, crossfade, stepScale, lerp,
+                 magnetDelay, magnetScale, preloadGate }   — any top-level key,
+         shadowing it while the phone variant is live.
+       section.rangeMobile / .settleMobile / .scrollMobile — same idea per scene: a
+         portrait re-render of one continuous take can split on a different doorway
+         frame and rest on a different one.
+       preloadGate: n — the loading gate waits on the first n clips only and streams
+         the rest in behind the revealed page.
        - coalesces seeks (never issues a new currentTime while the decoder is still
          `seeking`) so fast flicks can't pile up and freeze the video.
        - keeps the still as a live poster until the clip actually paints its first frame,
@@ -74,19 +86,55 @@ function mountScrollWorld(container, config) {
   const SECTIONS = config.sections || [];
   const CONNECTORS = config.connectors || [];
   const CONNECTORS_M = config.connectorsMobile || [];
-  const DIVE_W = config.diveScroll || 1.3;
-  const CONN_W = config.connScroll || 0.9;
-  const CROSSFADE = (config.crossfade != null) ? config.crossfade : 0.12;  // seam dissolve width (vh)
-  // HOLD — trailing fraction of a dive's scroll range where the clip is parked on
-  // its final (arrival) frame instead of still scrubbing. This is what creates a
-  // second stable resting frame per scene: the flight completes, then the camera
-  // sits still while the copy is read. 0 = the old behaviour (scrub to the seam).
-  const HOLD = Math.min(0.8, Math.max(0, config.hold != null ? config.hold : 0));
+  // MOBILE OVERRIDES — a `mobile` block whose keys shadow the top-level ones while
+  // the phone variant is live. Phones want a different film, not the same film
+  // squeezed: a shorter hold (less thumb travel per stop), a wider seam dissolve
+  // (portrait crops harder, so a seam is more visible), a lazier lerp.
+  //
+  // Everything derived from these is LIVE, not captured at mount: crossing the
+  // breakpoint on a desktop resize re-runs tune() and relayouts. Anything read
+  // once here would silently keep the wrong variant's pacing after a switch.
+  const MOB = config.mobile || {};
+  let mobileNow = isMobile();
+  let DIVE_W, CONN_W, CROSSFADE, HOLD, STEP_SCALE, LERP, MAGNET_MS, MAGNET_SCALE;
+  // A dive's scroll range splits into three phases when HOLD is on; FLIGHT_END and
+  // HOLD_END are the two boundaries. They are derived from HOLD and read by
+  // segProgress, read()'s copy timing and buildStations() — recompute all three
+  // together or the camera parks on one frame while the magnet pulls to another.
+  let FLIGHT_END, HOLD_END;
+  function opt(key, dflt) {
+    if (mobileNow && MOB[key] != null) return MOB[key];
+    return config[key] != null ? config[key] : dflt;
+  }
+  function tune() {
+    DIVE_W = opt('diveScroll', 1.3);
+    CONN_W = opt('connScroll', 0.9);
+    CROSSFADE = opt('crossfade', 0.12);        // seam dissolve width (vh)
+    // HOLD — trailing fraction of a dive's scroll range where the clip is parked
+    // on its settle frame instead of still scrubbing. This is what creates a
+    // second stable resting frame per scene: the flight completes, then the
+    // camera sits still while the copy is read. 0 = scrub straight to the seam.
+    HOLD = Math.min(0.8, Math.max(0, opt('hold', 0)));
+    // Multiplier on how long a step between stations takes. 1 = the default pace.
+    STEP_SCALE = opt('stepScale', 1) > 0 ? opt('stepScale', 1) : 1;
+    // Per-frame catch-up on the scrubbed time. Lower = smoother but laggier; on a
+    // phone decoder a lazier lerp is fewer seeks per flick.
+    LERP = opt('lerp', 0.18);
+    // The magnet: how long after the last scroll event it waits, and how hard it
+    // pulls. A finger's momentum tail is longer and lumpier than a trackpad's, so
+    // phones wait longer and travel slower — a fast yank reads as the page
+    // fighting the gesture.
+    MAGNET_MS = opt('magnetDelay', 140);
+    MAGNET_SCALE = opt('magnetScale', 1);
+    FLIGHT_END = HOLD > 0 ? (1 - HOLD) * 0.68 : 1;
+    HOLD_END = HOLD > 0 ? FLIGHT_END + HOLD : 1;
+  }
+  tune();
   // SNAP — station-to-station navigation. With it on, the only scroll positions a
   // visitor can come to rest at are the stations (each scene's opening frame and
   // its arrival frame); every position between them is traversed by an animated
   // tween, so a flight or a seam dissolve always completes rather than being
-  // dragged through by hand. Opt-in.
+  // dragged through by hand. Opt-in, and not variant-dependent.
   const SNAP = config.snap === true;
   // PRELOAD — fetch every clip up front rather than lazily near the viewport, and
   // report progress so the host page can hold a loading screen until the whole
@@ -99,9 +147,6 @@ function mountScrollWorld(container, config) {
   // The hairline progress bar across the top of the viewport. Opt out with
   // progress: false.
   const SHOW_PROGRESS = config.progress !== false;
-  // Multiplier on how long a step between stations takes. 1 = the default pace;
-  // 3 runs the transitions at a third of that speed.
-  const STEP_SCALE = config.stepScale > 0 ? config.stepScale : 1;
   const N = SECTIONS.length;
   if (!N) return;
 
@@ -127,9 +172,14 @@ function mountScrollWorld(container, config) {
   // ---- build the interleaved segment chain: dive0, conn0, dive1, … diveN-1 ----
   const SEGMENTS = [];
   SECTIONS.forEach((s, i) => {
+    // rangeM / settleM / scrollM shadow their desktop twins while the mobile
+    // variant is live. A portrait render of the same take can split at a
+    // different doorway frame and want a different resting frame, so the split
+    // fractions are per-variant, not per-file.
     const dive = { kind: 'dive', si: i, clip: s.clip, clipM: s.clipMobile, still: s.still, stillM: s.stillMobile,
-                   accent: s.accent, w: s.scroll || DIVE_W, linger: s.linger || 0, range: s.range,
-                   settle: s.settle };
+                   accent: s.accent, w: 0, scroll: s.scroll, scrollM: s.scrollMobile,
+                   linger: s.linger || 0, range: s.range, rangeM: s.rangeMobile,
+                   settle: s.settle, settleM: s.settleMobile };
     SEGMENTS.push(dive);
     s._seg = dive;
     // A connector is optional: if connectors[i] is falsy, the two dives simply
@@ -138,7 +188,7 @@ function mountScrollWorld(container, config) {
     if (i < N - 1 && CONNECTORS[i]) {
       SEGMENTS.push({ kind: 'conn', si: i, clip: CONNECTORS[i], clipM: CONNECTORS_M[i],
                       still: SECTIONS[i + 1].still, stillM: SECTIONS[i + 1].stillMobile,
-                      accent: SECTIONS[i + 1].accent, w: CONN_W });
+                      accent: SECTIONS[i + 1].accent, w: 0 });
     }
   });
   const NSEG = SEGMENTS.length;
@@ -164,6 +214,7 @@ function mountScrollWorld(container, config) {
   const nav = el('nav', 'sw-nav'); if (config.nav !== false) topbar.appendChild(nav);
   if (config.cta && config.cta.label) {
     const c = el('a', 'sw-topcta'); c.href = config.cta.href || '#'; c.textContent = config.cta.label;
+    if (/^\/(?!\/)/.test(c.getAttribute('href'))) c.setAttribute('data-sw-nav', '');
     topbar.appendChild(c);
   }
 
@@ -183,7 +234,13 @@ function mountScrollWorld(container, config) {
   SEGMENTS.forEach(s => {
     const scene = el('div', 'sw-scene'); scene.style.setProperty('--sw-accent', s.accent || '');
     const img = el('img', 'sw-scene__still'); img.alt = ''; img.decoding = 'async'; img.loading = 'lazy';
-    const poster = (isMobile() && s.stillM) ? s.stillM : s.still;
+    // A missing mobile poster must not leave a black scene: fall back to the
+    // desktop still, which is a crop of the right room rather than nothing. This
+    // is what lets the page ship before the portrait renders land.
+    img.addEventListener('error', () => {
+      if (s.still && img.getAttribute('src') !== s.still) img.src = s.still;
+    });
+    const poster = posterOf(s);
     if (poster) img.src = poster;
     scene.appendChild(img); stage.appendChild(scene);
     s.el = scene; s.img = img; s.video = null; s.hasClip = false;
@@ -237,11 +294,13 @@ function mountScrollWorld(container, config) {
   // spends its last beat gliding toward the NEXT room, so its final frame is a
   // doorway, not a destination. Parking on `settle` instead of the last frame is
   // what keeps a scene's resting image its own subject.
-  const FLIGHT_END = HOLD > 0 ? (1 - HOLD) * 0.68 : 1;
-  const HOLD_END = HOLD > 0 ? FLIGHT_END + HOLD : 1;
+  function settleOf(s) {
+    const v = (mobileNow && s.settleM != null) ? s.settleM : s.settle;
+    return (v != null) ? clamp(v) : 1;
+  }
   function segProgress(s, local) {
     if (HOLD <= 0 || s.kind !== 'dive') return s.linger ? lingerEase(local, s.linger) : local;
-    const settle = (s.settle != null) ? clamp(s.settle) : 1;
+    const settle = settleOf(s);
     if (local <= FLIGHT_END) {
       const x = FLIGHT_END > 0 ? local / FLIGHT_END : 1;
       return (s.linger ? lingerEase(x, s.linger) : x) * settle;
@@ -251,14 +310,23 @@ function mountScrollWorld(container, config) {
   }
   let vh = window.innerHeight, stageX = 0, totalW = 0, activeIndex = -1, ticking = false;
   let laidOutW = window.innerWidth;   // width the current layout was computed at (see onResize)
-  let stations = [], tween = null, inputLock = 0, settleTimer = 0;
+  let stations = [], tween = null, inputLock = 0, settleTimer = 0, resizeTimer = 0, touching = false;
+
+  // Scroll distance a segment gets, in viewport heights. Live, because a phone's
+  // thumb travel is not a mouse wheel's: the mobile block and `scrollMobile`
+  // shorten the film without touching the desktop pacing.
+  function widthOf(s) {
+    if (s.kind === 'conn') return CONN_W;
+    if (mobileNow && s.scrollM) return s.scrollM;
+    return s.scroll || DIVE_W;
+  }
 
   function layout() {
     vh = window.innerHeight;
     laidOutW = window.innerWidth;
     stageX = window.innerWidth > 860 ? 4 : 0;
     let off = 0;
-    SEGMENTS.forEach(s => { s.start = off * vh; off += s.w; s.end = off * vh; });
+    SEGMENTS.forEach(s => { s.w = widthOf(s); s.start = off * vh; off += s.w; s.end = off * vh; });
     totalW = off;
     track.style.height = (totalW * vh + vh) + 'px';   // +1vh so the last flight completes
     buildStations();
@@ -404,22 +472,40 @@ function mountScrollWorld(container, config) {
   // good. Failures still count so a single missing file can never wedge a page
   // that is waiting on onReady before it reveals itself.
   const clipSegs = SEGMENTS.filter(s => s.clip);
+  // GATE — how many clips the host's loading screen waits on. Default: all of
+  // them. `preloadGate: n` (or `mobile.preloadGate`) waits on the first n and
+  // streams the rest in behind the revealed page, which is the difference on a
+  // phone between a 4-clip wait and a 2-clip wait before the first scroll. It is
+  // read once, at mount, because that is the only moment the gate exists.
+  const GATE = (() => {
+    const n = opt('preloadGate', 0);
+    return n > 0 ? Math.min(n, clipSegs.length) : clipSegs.length;
+  })();
+  clipSegs.forEach((s, i) => { s._gated = i < GATE; });
   let settledClips = 0, announcedReady = false;
   function announceReady() {
     if (announcedReady) return;
     announcedReady = true;
     armAutoScroll();
     if (config.onReady) { try { config.onReady(); } catch (e) {} }
+    // Second wave: everything the gate did not wait on, now that the visitor has
+    // the page. Ordered after onReady so it competes with nothing for the first
+    // scroll's bandwidth.
+    if (PRELOAD && GATE < clipSegs.length) clipSegs.forEach(s => { if (!s._gated) loadClip(s); });
   }
-  function noteSettled() {
+  // Only the initial load moves the bar. A variant switch reloads every clip, and
+  // counting those would push the host's progress past 100%.
+  function noteSettled(s) {
+    if (announcedReady || !s._gated || s._settled) return;
+    s._settled = true;
     settledClips++;
-    if (config.onProgress) { try { config.onProgress(settledClips, clipSegs.length); } catch (e) {} }
-    if (settledClips >= clipSegs.length) announceReady();
+    if (config.onProgress) { try { config.onProgress(settledClips, GATE); } catch (e) {} }
+    if (settledClips >= GATE) announceReady();
   }
   // Reduced motion never loads a clip, and a config with no clips has nothing to
   // wait for; in both cases the page is ready as soon as it is mounted.
   if (reduce || !clipSegs.length) {
-    if (config.onProgress) { try { config.onProgress(clipSegs.length, clipSegs.length); } catch (e) {} }
+    if (config.onProgress) { try { config.onProgress(GATE, GATE); } catch (e) {} }
     announceReady();
   }
 
@@ -435,12 +521,16 @@ function mountScrollWorld(container, config) {
   }
 
   // The slice of a clip a segment plays, as [0..1] fractions of its duration.
+  // A portrait re-render of the same continuous take can put its doorway on a
+  // different frame, so the split is per-variant.
   function rangeOf(s) {
-    const r = s.range;
+    const r = (mobileNow && s.rangeM) ? s.rangeM : s.range;
     if (!r || r.length !== 2) return [0, 1];
     const a = clamp(r[0]), b = clamp(r[1]);
     return b > a ? [a, b] : [0, 1];
   }
+  function clipOf(s) { return (mobileNow && s.clipM) ? s.clipM : s.clip; }
+  function posterOf(s) { return (mobileNow && s.stillM) ? s.stillM : s.still; }
 
   function loadClip(s) {
     // Under prefers-reduced-motion we never load the clips at all — the stills stay up
@@ -448,9 +538,14 @@ function mountScrollWorld(container, config) {
     if (reduce || s.loading || !s.clip) return;
     s.loading = true;
     // Serve the lighter mobile encode on phones when one was provided.
-    const url = (isMobile() && s.clipM) ? s.clipM : s.clip;
+    const url = clipOf(s);
+    s.loadedUrl = url;
     fetchClip(url)
       .then(blob => {
+        // A breakpoint crossing while this fetch was in flight already asked for
+        // the other variant. Drop this one on the floor rather than attaching a
+        // desktop decoder to a scene that is now portrait.
+        if (destroyed || s.loadedUrl !== url) return;
         const v = document.createElement('video');
         v.className = 'sw-scene__video';
         v.muted = true; v.playsInline = true; v.preload = 'auto';
@@ -464,7 +559,7 @@ function mountScrollWorld(container, config) {
           // opening scene would sit on its poster until the visitor scrolled —
           // the clip present but never shown.
           try { v.currentTime = rangeOf(s)[0] * (v.duration || 0) + 0.001; } catch (e) {}
-          noteSettled();
+          noteSettled(s);
           read();
         });
         // Reveal the video (hide the still poster) only once a real frame has
@@ -473,7 +568,61 @@ function mountScrollWorld(container, config) {
         v.addEventListener('seeked', () => { s.el.classList.add('has-clip'); }, { once: true });
         v.addEventListener('loadeddata', () => { try { v.pause(); } catch (e) {} if (userReady) primeVideo(v); });
         s.el.appendChild(v); s.video = v; s.hasClip = true;
-      }).catch(() => { s.loading = false; noteSettled(); });
+      }).catch(() => { if (s.loadedUrl === url) { s.loading = false; noteSettled(s); } });
+  }
+
+  // ---- variant switching ----------------------------------------------------
+  // Tear a segment's decoder down so the other variant's file can take its place.
+  // The still goes back to being a live poster (has-clip off) for the gap — the
+  // same rule the iOS blank-frame fix relies on, so the swap never shows an empty
+  // scene while the replacement decodes.
+  function detachVideo(s) {
+    const v = s.video;
+    s.video = null; s.hasClip = false; s.ready = false; s.loading = false;
+    s.el.classList.remove('has-clip');
+    if (!v) return;
+    try {
+      v.pause();
+      if (v.src && v.src.startsWith('blob:')) URL.revokeObjectURL(v.src);
+      v.removeAttribute('src');
+      v.load();
+    } catch (e) {}
+    v.remove();
+  }
+
+  // Where the camera is in the film, as (segment, fraction within it). Scroll
+  // pixels are not portable across a switch: the mobile variant can give a scene
+  // a different `scroll` width and a different `settle`, so the stations move.
+  // The fraction does survive, which is what keeps the picture from jumping.
+  function capturePlace() {
+    const y = window.scrollY || window.pageYOffset;
+    let i = 0;
+    for (let k = 0; k < NSEG; k++) if (y >= SEGMENTS[k].start) i = k;
+    const s = SEGMENTS[i];
+    return { i, f: clamp((y - s.start) / Math.max(1, s.end - s.start), 0, 1) };
+  }
+
+  // Swap every scene to the other variant's clip and poster, keeping the camera
+  // where it was. Called from the debounced resize when the breakpoint is crossed
+  // — never on a URL-bar height change, which never crosses it.
+  function switchVariant() {
+    const place = capturePlace();
+    mobileNow = isMobile();
+    tune();
+    SEGMENTS.forEach(s => {
+      detachVideo(s);
+      const poster = posterOf(s);
+      if (poster && s.img.getAttribute('src') !== poster) s.img.src = poster;
+      s.loadedUrl = null;
+    });
+    layout();                       // new widths, new stations, new hold window
+    const seg = SEGMENTS[place.i];
+    window.scrollTo(0, seg.start + (seg.end - seg.start) * place.f);
+    // The lerp would otherwise spend a second catching up from the old variant's
+    // normalised time; the picture is meant to be the same frame, so start there.
+    SEGMENTS.forEach(s => { s.cur = s.target; });
+    if (PRELOAD) SEGMENTS.forEach(loadClip);
+    read();
   }
 
   function read() {
@@ -492,11 +641,26 @@ function mountScrollWorld(container, config) {
       let outside = 0;
       if (y < s.start) outside = s.start - y; else if (y > s.end) outside = y - s.end;
       const op = smooth(1 - outside / fade);
-      s.el.style.opacity = op; s.visible = op > 0.001;
-      s.el.style.zIndex = (i === ci) ? '120' : String(100 + Math.round(op * 10));
+      // Every style write below is guarded on an actual change. Eight scenes ×
+      // three properties × 60Hz is a lot of style invalidation for values that
+      // are constant for most of the film — six of the eight scenes are fully
+      // transparent at any moment and their numbers never move.
+      if (op !== s._op) {
+        s.el.style.opacity = op;
+        s.visible = op > 0.001;
+        // will-change pins a composited layer. Leaving it on all eight scenes
+        // holds eight full-viewport layers in GPU memory for the whole session,
+        // which is the single biggest memory line on a phone. Promote only the
+        // scenes actually on screen — the flag flips at most twice per seam.
+        s.el.classList.toggle('is-live', s.visible);
+        s._op = op;
+      }
+      const z = (i === ci) ? '120' : String(100 + Math.round(op * 10));
+      if (z !== s._z) { s.el.style.zIndex = z; s._z = z; }
       if (!s.hasClip || !s.ready) {
         const sc = reduce ? 1 : 1.03 + flight * 0.14;
-        s.img.style.transform = `translateX(${stageX - 2}vw) scale(${sc.toFixed(3)})`;
+        const tr = `translateX(${stageX - 2}vw) scale(${sc.toFixed(3)})`;
+        if (tr !== s._tr) { s.img.style.transform = tr; s._tr = tr; }
       }
     }
 
@@ -525,7 +689,7 @@ function mountScrollWorld(container, config) {
       else if (i === N - 1) cop = before ? 0 : smooth(pr / 0.4);       // holds CTA at the end
       else cop = (before || after) ? 0 : smooth(1 - Math.abs(pr - 0.5) / 0.5);
       const c = copies[i];
-      c.style.opacity = cop;
+      if (cop !== c._cop) { c.style.opacity = cop; c._cop = cop; }
       // Parallax is published as a custom property, never as an inline transform:
       // the stylesheet owns the block's centring transform, and an inline one
       // would replace it (dropping translateY(-50%)) and push tall blocks such as
@@ -534,15 +698,19 @@ function mountScrollWorld(container, config) {
       // one rests at the very end of its range while the others rest mid-hold — so
       // a deep travel here would land the type at visibly different heights from
       // one stop to the next, which is exactly what the top anchor is for.
-      c.style.setProperty('--sw-shift', reduce ? '0vh' : ((0.5 - pr) * 1.5).toFixed(3) + 'vh');
-      c.style.pointerEvents = cop > 0.5 ? 'auto' : 'none';
+      const shift = reduce ? '0vh' : ((0.5 - pr) * 1.5).toFixed(3) + 'vh';
+      if (shift !== c._shift) { c.style.setProperty('--sw-shift', shift); c._shift = shift; }
+      const pe = cop > 0.5 ? 'auto' : 'none';
+      if (pe !== c._pe) { c.style.pointerEvents = pe; c._pe = pe; }
 
       const ic = intros[i];
       if (ic) {
         const icop = (before || after) ? 0 : smooth(1 - pr / Math.max(1e-4, rise0 * 0.72));
-        ic.style.opacity = icop;
-        ic.style.setProperty('--sw-shift', reduce ? '0vh' : (-pr * 2).toFixed(3) + 'vh');
-        ic.style.pointerEvents = icop > 0.5 ? 'auto' : 'none';
+        if (icop !== ic._cop) { ic.style.opacity = icop; ic._cop = icop; }
+        const ish = reduce ? '0vh' : (-pr * 2).toFixed(3) + 'vh';
+        if (ish !== ic._shift) { ic.style.setProperty('--sw-shift', ish); ic._shift = ish; }
+        const ipe = icop > 0.5 ? 'auto' : 'none';
+        if (ipe !== ic._pe) { ic.style.pointerEvents = ipe; ic._pe = ipe; }
       }
     }
 
@@ -555,15 +723,18 @@ function mountScrollWorld(container, config) {
       nav.querySelectorAll('.sw-nav__item').forEach((n, k) => n.classList.toggle('is-active', k === near));
       container.style.setProperty('--sw-accent', SECTIONS[near].accent || '');
     }
-    scrollbarFill.style.transform = `scaleX(${clamp(y / (totalW * vh))})`;
-    hint.style.opacity = clamp(1 - y / (0.5 * vh));
-    if (particles) particles.style.transform = `translate3d(0, ${-y * 0.05}px, 0)`;
+    if (SHOW_PROGRESS) scrollbarFill.style.transform = `scaleX(${clamp(y / (totalW * vh))})`;
+    const hop = clamp(1 - y / (0.5 * vh));
+    if (hop !== hint._op) { hint.style.opacity = hop; hint._op = hop; }
+    // Particles are already off on phones (seedParticles); skip the write entirely
+    // when there are none rather than transforming an empty layer every frame.
+    if (particles && particles.firstChild) particles.style.transform = `translate3d(0, ${-y * 0.05}px, 0)`;
     ticking = false;
   }
 
   function raf() {
     if (destroyed) return;   // stop rescheduling; nothing left to scrub
-    const eps = isMobile() ? 0.02 : 0.008;   // coarser seek step on phones = fewer decodes
+    const eps = mobileNow ? 0.02 : 0.008;   // coarser seek step on phones = fewer decodes
     for (let i = 0; i < NSEG; i++) {
       const s = SEGMENTS[i];
       if (!s.hasClip || !s.ready || !s.video) continue;
@@ -572,7 +743,7 @@ function mountScrollWorld(container, config) {
       // cur keeps lerping, so we snap to the latest target the moment it's free.
       if (s.video.seeking) continue;
       if (!s.visible && Math.abs(s.cur - s.target) < 0.002) continue;
-      s.cur += (s.target - s.cur) * (reduce ? 1 : 0.18);
+      s.cur += (s.target - s.cur) * (reduce ? 1 : LERP);
       const dur = s.video.duration || 1;
       // Map this segment's 0..1 progress onto its slice of the clip, then stay a
       // hair inside the tail: seeking exactly to duration lands past the last
@@ -590,7 +761,7 @@ function mountScrollWorld(container, config) {
   // clips prime themselves (see loadClip).
   let userReady = false;
   function primeVideo(v) {
-    if (!isMobile() || !v) return;
+    if (!mobileNow || !v) return;
     try { const p = v.play(); if (p && p.then) p.then(() => { try { v.pause(); } catch (e) {} }).catch(() => {}); }
     catch (e) {}
   }
@@ -615,29 +786,50 @@ function mountScrollWorld(container, config) {
     // genuinely over. Short and distance-scaled: this lands the visitor's own
     // gesture rather than taking them for a ride, and anything slow enough to
     // notice reads as lag.
-    if (SNAP && !tween) {
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => {
-        if (tween || !stations.length) return;
-        const y = window.scrollY || window.pageYOffset;
-        const s = stations[nearestStation(y)];
-        const d = Math.abs(s - y);
-        if (d > 2) tweenTo(s, Math.min(1520, Math.max(640, (d / vh) * 1800)));
-      }, 140);
-    }
+    if (SNAP && !tween) armMagnet();
+  }
+  // The magnet, factored out so a finger lift can re-arm it. A touch that is still
+  // down produces no scroll events while it holds still, so without this the timer
+  // would fire under a stationary finger and drag the page out from under it.
+  function armMagnet() {
+    if (!SNAP || touching) return;
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      if (tween || touching || !stations.length) return;
+      const y = window.scrollY || window.pageYOffset;
+      const s = stations[nearestStation(y)];
+      const d = Math.abs(s - y);
+      if (d > 2) tweenTo(s, Math.min(1520, Math.max(640, (d / vh) * 1800)) * MAGNET_SCALE);
+    }, MAGNET_MS);
   }
   on(window, 'scroll', onScroll, { passive: true });
+  // Never fight a finger that's still down: the magnet is disarmed for the whole
+  // gesture and only re-armed on lift, where the momentum tail then keeps pushing
+  // the timer out until the flick has genuinely finished.
+  on(window, 'touchstart', () => { touching = true; clearTimeout(settleTimer); }, { passive: true });
+  on(window, 'touchend', () => { touching = false; armMagnet(); }, { passive: true });
+  on(window, 'touchcancel', () => { touching = false; armMagnet(); }, { passive: true });
   // Mobile browsers fire `resize` every time the URL bar slides in/out. Re-running
   // layout() there rebuilds the track height and yanks the scroll position, so on
   // touch we ignore height-only changes and only relayout when the width actually
   // changes (rotation still comes through orientationchange). layout() records the
   // width it laid out at.
+  //
+  // Debounced, because dragging a desktop window narrow fires this continuously
+  // and a variant switch tears down four decoders — doing that per pixel would be
+  // a slideshow. 160ms is under the threshold where a resize feels unresponsive
+  // and well over a drag's event rate.
   function onResize() {
     if (coarse && window.innerWidth === laidOutW) return;
-    layout();
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (destroyed) return;
+      if (isMobile() !== mobileNow) switchVariant();
+      else layout();
+    }, 160);
   }
   on(window, 'resize', onResize);
-  on(window, 'orientationchange', layout);
+  on(window, 'orientationchange', () => { if (isMobile() !== mobileNow) switchVariant(); else layout(); });
   on(window, 'load', layout);
 
   // ---- station navigation --------------------------------------------------
@@ -662,10 +854,28 @@ function mountScrollWorld(container, config) {
     });
   }
 
+  // ---- in-film links into the rest of the site -------------------------------
+  // A CTA pointing at a same-origin path (the shop) must not reload the document:
+  // that would drop the whole preloaded film and put the visitor back behind the
+  // loading gate on their way back. The engine can't know the host's router, so
+  // it emits `scrollworld:navigate` with the href and lets the host handle it —
+  // and falls back to the anchor's own default if nobody does.
+  on(container, 'click', e => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target && e.target.closest ? e.target.closest('a[data-sw-nav]') : null;
+    if (!a || !container.contains(a)) return;
+    const ev = new CustomEvent('scrollworld:navigate', {
+      detail: { href: a.getAttribute('href') }, cancelable: true,
+    });
+    // Handled means the host routed it; unhandled means let the browser do it.
+    if (!window.dispatchEvent(ev)) e.preventDefault();
+  });
+
   layout();
-  // Pull the whole film down at mount so the first scroll already has frames to
-  // scrub. The host page holds its loading screen until onReady fires.
-  if (PRELOAD) SEGMENTS.forEach(loadClip);
+  // Pull the film down at mount so the first scroll already has frames to scrub.
+  // The host page holds its loading screen until onReady fires. With a `preloadGate`
+  // only that many clips are in this wave; announceReady kicks off the rest.
+  if (PRELOAD) clipSegs.forEach(s => { if (s._gated) loadClip(s); });
   requestAnimationFrame(raf);
 
   // Hand the caller a way out. A single-page app MUST call this when it unmounts
@@ -678,6 +888,7 @@ function mountScrollWorld(container, config) {
     bound.length = 0;
     cancelAutoScroll();
     clearTimeout(settleTimer);
+    clearTimeout(resizeTimer);
     tween = null;                // in-flight tweenTo checks this and bails
     // Release the decoders and the blob URLs; the container's DOM is about to go.
     SEGMENTS.forEach(s => {
@@ -711,9 +922,18 @@ function mountScrollWorld(container, config) {
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function ctaBtns(cta) {
     let h = '';
-    if (cta.primary) h += `<a class="sw-btn sw-btn--primary" href="${esc(cta.primary.href || '#')}">${esc(cta.primary.label)}</a>`;
-    if (cta.secondary) h += `<a class="sw-btn sw-btn--ghost" href="${esc(cta.secondary.href || '#')}">${esc(cta.secondary.label)}</a>`;
+    if (cta.primary) h += btn('sw-btn--primary', cta.primary);
+    if (cta.secondary) h += btn('sw-btn--ghost', cta.secondary);
     return h;
+  }
+  // Real anchors, always — middle-click and open-in-new-tab have to keep working.
+  // Same-origin paths additionally get data-sw-nav, which the delegated handler
+  // below turns into an event the host's router can take, so a CTA into the shop
+  // is a route change and not a full reload of a 40MB film.
+  function btn(cls, c) {
+    const href = c.href || '#';
+    const internal = /^\/(?!\/)/.test(href) ? ' data-sw-nav' : '';
+    return `<a class="sw-btn ${cls}" href="${esc(href)}"${internal}>${esc(c.label)}</a>`;
   }
 }
 
@@ -762,9 +982,14 @@ function injectCSS() {
   .sw-nav__item:hover{color:var(--sw-ink);} .sw-nav__item.is-active{color:#fff;background:var(--sw-accent);}
   .sw-topcta{text-decoration:none;font-weight:600;font-size:.9rem;color:#fff;background:var(--sw-ink);padding:10px 20px;border-radius:999px;white-space:nowrap;}
   .sw-stage{position:fixed;inset:0;z-index:10;pointer-events:none;}
-  .sw-scene{position:absolute;inset:0;opacity:0;overflow:hidden;will-change:opacity;}
+  /* will-change only on the scenes that are actually on screen (read() toggles
+     is-live). Pinning a composited layer per scene for the whole session costs a
+     full-viewport GPU surface each, which is what runs a phone out of memory. */
+  .sw-scene{position:absolute;inset:0;opacity:0;overflow:hidden;contain:paint;}
+  .sw-scene.is-live{will-change:opacity;}
   .sw-scene__video,.sw-scene__still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 42%;}
-  .sw-scene__still{will-change:transform;} .sw-scene.has-clip .sw-scene__still{opacity:0;} .sw-scene__video{z-index:1;}
+  .sw-scene.is-live .sw-scene__still{will-change:transform;}
+  .sw-scene.has-clip .sw-scene__still{opacity:0;} .sw-scene__video{z-index:1;}
   .sw-copylayer{position:fixed;inset:0;z-index:20;pointer-events:none;}
   .sw-copylayer::before{content:"";position:absolute;inset:0;width:min(58vw,780px);background:linear-gradient(90deg,var(--sw-bg) 0%,color-mix(in srgb,var(--sw-bg) 82%,transparent) 34%,color-mix(in srgb,var(--sw-bg) 40%,transparent) 62%,transparent 100%);}
   /* Bounded box, not a centred point: top/bottom insets keep the block inside the
@@ -789,7 +1014,11 @@ function injectCSS() {
   .sw-copy__body{margin-top:18px;font-size:clamp(1rem,1.25vw,1.14rem);line-height:1.55;color:color-mix(in srgb,var(--sw-ink) 78%,var(--sw-ink-soft));max-width:40ch;text-shadow:0 1px 12px color-mix(in srgb,var(--sw-bg) 90%,transparent);}
   .sw-copy__tags{list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin:24px 0 0;padding:0;}
   .sw-copy__tags li{font-size:.82rem;font-weight:600;color:color-mix(in srgb,var(--sw-accent) 70%,#000);padding:7px 14px;border-radius:999px;background:color-mix(in srgb,var(--sw-accent) 14%,#fff);border:1px solid color-mix(in srgb,var(--sw-accent) 30%,transparent);}
-  .sw-copy__cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px;pointer-events:auto;}
+  /* No pointer-events here: read() turns the whole .sw-copy block on only inside
+     its own hold window, and a child forcing auto would make every CTA in the
+     film a live tap target behind the scene you are actually looking at — which
+     on a phone is five bottom-anchored blocks stacked in the same strip. */
+  .sw-copy__cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px;}
   .sw-btn{text-decoration:none;font-weight:600;font-size:.95rem;padding:13px 24px;border-radius:999px;transition:transform .2s;}
   .sw-btn--primary{color:#fff;background:var(--sw-ink);} .sw-btn--primary:hover{transform:translateY(-2px);}
   .sw-btn--ghost{color:var(--sw-ink);border:1.5px solid color-mix(in srgb,var(--sw-ink) 25%,transparent);} .sw-btn--ghost:hover{transform:translateY(-2px);}
@@ -807,7 +1036,18 @@ function injectCSS() {
   @keyframes sw-wheel{0%{opacity:0;top:6px}40%{opacity:1}100%{opacity:0;top:17px}}
   .sw-track{position:relative;z-index:1;width:100%;pointer-events:none;}
   @media (max-width:860px){
-    .sw-nav{display:none;}
+    /* The topbar wraps: row one is the brand and whatever actions survive at this
+       width, row two is the stops. Top padding clears a notch. */
+    .sw-topbar{flex-wrap:wrap;row-gap:8px;padding:calc(clamp(10px,3vw,18px) + env(safe-area-inset-top)) clamp(14px,4vw,24px) 0;}
+    /* The stops become a swipeable row rather than folding into a hamburger. Five
+       short labels fit a thumb flick, and a menu you have to open hides the only
+       map of the film there is. */
+    .sw-nav{display:flex;order:3;flex-basis:100%;max-width:100%;gap:2px;
+      overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;
+      scroll-snap-type:x proximity;scrollbar-width:none;}
+    .sw-nav::-webkit-scrollbar{width:0;height:0;display:none;}
+    .sw-nav__item{flex:0 0 auto;scroll-snap-align:center;padding:8px 13px;font-size:.78rem;}
+    .sw-topcta{font-size:.82rem;padding:9px 16px;}
     .sw-copylayer::before{width:100%;height:60%;top:auto;bottom:0;background:linear-gradient(0deg,var(--sw-bg) 8%,color-mix(in srgb,var(--sw-bg) 70%,transparent) 46%,transparent 100%);}
     /* Anchor copy to the bottom, clear of the home indicator / collapsing URL bar.
        dvh + env() are progressive: browsers that lack them keep the vh fallback line. */
@@ -822,6 +1062,16 @@ function injectCSS() {
      subject (which the camera dives toward) stays in view. */
   @media (max-width:860px) and (orientation:portrait){
     .sw-scene__video,.sw-scene__still{object-position:center 44%;}
+  }
+  /* A phone in landscape has ~400px of height to fit a wrapped topbar, a copy
+     block and the hint. Drop the stops row (the copy is what matters here) and
+     tighten the type rather than letting the CTA fall off the bottom. */
+  @media (max-width:900px) and (max-height:520px) and (orientation:landscape){
+    .sw-nav{display:none;}
+    .sw-copy{bottom:calc(12px + env(safe-area-inset-bottom));top:auto;}
+    .sw-copy__title{font-size:clamp(1.4rem,4.4vh,1.9rem);}
+    .sw-copy__body{font-size:.92rem;margin-top:8px;}
+    .sw-copy__cta{margin-top:12px;} .sw-hint{display:none;}
   }
   /* Touch: give the route dots a finger-sized hit area without growing the visible dot. */
   @media (hover:none) and (pointer:coarse){

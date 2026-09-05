@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { ScrollWorldConfig } from "../lib/scrub-engine";
 // Side-effect import: the engine assigns window.mountScrollWorld at import time.
 // It has no ES exports and returns no destroy handle.
@@ -70,12 +70,34 @@ const DECK: ScrollWorldConfig = {
   // Shorter than the deck CTA: this one sits in the topbar next to the nav, and
   // the full sentence is carried by the closing scene's button.
   cta: { label: "Book a consultation", href: deckCta.href },
+  // The phone is a different film, not this one squeezed. Portrait renders, a
+  // shorter hold (a thumb covers less ground than a wheel), a lazier lerp and a
+  // coarser magnet — a finger's momentum tail is longer and lumpier than a
+  // trackpad's, so pulling on it at desktop speed reads as the page fighting the
+  // gesture. preloadGate 2 reveals the page once Arrival and The Hall are
+  // decodable; the other two stream in behind it (see docs/site.md).
+  mobile: {
+    hold: 0.2,
+    diveScroll: 1.05,
+    crossfade: 0.1,
+    stepScale: 3,
+    lerp: 0.14,
+    magnetDelay: 240,
+    magnetScale: 1.35,
+    preloadGate: 2,
+  },
   sections: [
     {
       id: "arrival",
       label: "Arrival",
       still: "/world/arrival.webp",
       clip: "/world/vid/arrival.mp4",
+      // Native 9:16 renders of the same take, served whenever the phone variant
+      // is live. Missing files are survivable: the clip falls back to the still
+      // and the still falls back to the landscape one, so the page runs before
+      // the portrait chain has landed.
+      stillMobile: "/world/arrival-m.webp",
+      clipMobile: "/world/vid/arrival-m.mp4",
       accent: "#B19556",
       // The landing greeting, held while the camera is still outside the room.
       // Verbatim brand voice: "Where sculpture meets architecture" is Hajar's own
@@ -96,6 +118,8 @@ const DECK: ScrollWorldConfig = {
       label: "The Hall",
       still: "/world/gallery.webp",
       clip: "/world/vid/gallery.mp4",
+      stillMobile: "/world/gallery-m.webp",
+      clipMobile: "/world/vid/gallery-m.mp4",
       accent: "#F2EDE4",
       // gallery.mp4 spends its last ~3s gliding off toward the gold wave wall,
       // which is the NEXT scene's subject, so this stop rests well short of the
@@ -107,9 +131,16 @@ const DECK: ScrollWorldConfig = {
       // 5.667 and holds until 6.0. 5.80 sits comfortably inside that step rather
       // than on its edge.
       settle: 0.5824,
+      // gallery-m parks at 8.25s, monolith left of centre against the gold wall.
+      settleMobile: 0.8216,
       eyebrow: "THE WORK",
       title: "More Than a Wall",
       body: "Monumental relief panels, each shaped by hand and finished for the space it lives in.",
+      // The shop is part of this site, not a place you get shunted to from the
+      // topbar. The Hall is where a visitor is looking at the work, so it is
+      // where the offer to buy belongs. Same-origin href: the engine turns it
+      // into a route change rather than reloading the whole film.
+      cta: { secondary: { label: "See what's available", href: "/shop" } },
     },
 
     // -- The Wall / The Studio: one clip, two stops ------------------------
@@ -129,9 +160,16 @@ const DECK: ScrollWorldConfig = {
       label: "The Wall",
       still: "/world/atelier.webp",
       clip: "/world/vid/atelier.mp4",
+      stillMobile: "/world/atelier-m.webp",
+      clipMobile: "/world/vid/atelier-m.mp4",
       range: [0, 0.56],
+      // atelier-m is its own render, so its doorway lands on its own frame:
+      // the white frame first enters at 5.625s, so the split sits at 5.50s.
+      // This pair and The Studio below must move together or the seam opens.
+      rangeMobile: [0, 0.5477],
       accent: "#B19556",
       scroll: 1.35,
+      scrollMobile: 1.15,
       // The reserved SIGNATURE beat from the deck, now that the footage supports
       // it as its own stop. Matches brochure page 04, The Wave Wall.
       eyebrow: "SIGNATURE",
@@ -143,12 +181,18 @@ const DECK: ScrollWorldConfig = {
       label: "The Studio",
       still: "/world/studio.jpg",
       clip: "/world/vid/atelier.mp4",
+      stillMobile: "/world/studio-m.webp",
+      clipMobile: "/world/vid/atelier-m.mp4",
       range: [0.56, 1],
+      rangeMobile: [0.5477, 1],
       accent: "#8C6F4A",
       scroll: 1.35,
+      scrollMobile: 1.15,
       // Rest with the artist at the relief (~9.3s), before the camera turns to
-      // the worktable that hands off to the materials scene.
+      // the worktable that hands off to the materials scene. The portrait cut
+      // rests at 9.42s, mid keyframe step (GOP 4 on the -m encodes).
       settle: 0.86,
+      settleMobile: 0.8631,
       eyebrow: "IN THE STUDIO",
       title: "Shaped by Hand",
       body: "Hajar Sarafan sculpts every piece herself in Toronto, working plaster and light for one room only.",
@@ -178,15 +222,21 @@ const DECK: ScrollWorldConfig = {
       label: "Materials",
       still: "/world/materials.webp",
       clip: "/world/vid/materials.mp4",
+      stillMobile: "/world/materials-m.webp",
+      clipMobile: "/world/vid/materials-m.mp4",
       accent: "#F2EDE4",
       scroll: 1.5,
+      scrollMobile: 1.25,
       eyebrow: "THE FINISHES",
       title: "Let's Create Something Original",
       body: "Gold leaf, plaster, and patient hands, brought together into a piece that belongs only to your space.",
       // The closing section carries the deck CTA plus the contact address.
+      // The consultation stays the primary ask; the secondary now goes to the
+      // shop rather than repeating the primary's mailto with a different label.
+      // The address itself still reads under the button in the deck.
       cta: {
         primary: { label: deckCta.label, href: deckCta.href },
-        secondary: { label: deckCta.contactLines[1], href: deckCta.href },
+        secondary: { label: "Browse the pieces", href: "/shop" },
       },
     },
   ],
@@ -194,12 +244,28 @@ const DECK: ScrollWorldConfig = {
 
 export default function World() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const revealed = useRef(false);
   const [ready, setReady] = useState(false);
   // The engine builds its own topbar; the Shop link is portalled into it once
   // it exists, so it participates in that flex row instead of floating over it.
   const [topbar, setTopbar] = useState<HTMLElement | null>(null);
   const [progress, setProgress] = useState(0);
+
+  // The engine renders its own CTAs, so it can't hold a react-router <Link>. It
+  // emits this instead for any same-origin href and honours preventDefault as
+  // "handled" — so a shop CTA inside the film is a route change, and coming back
+  // doesn't re-download 40MB behind the loading gate.
+  useEffect(() => {
+    const onNav = (e: Event) => {
+      const href = (e as CustomEvent<{ href?: string }>).detail?.href;
+      if (!href) return;
+      e.preventDefault();
+      navigate(href);
+    };
+    window.addEventListener("scrollworld:navigate", onNav);
+    return () => window.removeEventListener("scrollworld:navigate", onNav);
+  }, [navigate]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -284,7 +350,11 @@ export default function World() {
           </Link>,
           topbar,
         )}
-      <div ref={containerRef} className="dot-world" />
+      {/* role="main" rather than a <main> tag: the engine owns this element and
+          expects a plain div (containerRef is typed HTMLDivElement), but it's
+          still the page's one real landmark — the nav, copy, and CTAs it
+          injects are the whole point of the route. */}
+      <div ref={containerRef} className="dot-world" role="main" />
       <AmbientAudio />
 
       {/* Loading gate. The whole film is fetched before anything is shown, so the
