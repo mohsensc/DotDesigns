@@ -1,150 +1,95 @@
-/* Aliases onto the house palette in index.css. Never re-hardcode the hexes —
-   the shop and the scroll film both alias the same source. */
+/* Where Stripe hands the buyer back. One narrow column, nothing else on it. */
+
 .checkout {
-  --ck-bg: var(--dot-bg);
-  --ck-ink: var(--dot-ink);
-  --ck-ink-soft: var(--dot-ink-soft);
-  --ck-accent: var(--dot-accent);
-  --ck-font-display: var(--dot-font-display);
-  --ck-font-body: var(--dot-font-body);
-
-  min-height: 100vh;
-  background: var(--ck-bg);
-  color: var(--ck-ink);
   display: flex;
-  flex-direction: column;
+  padding: clamp(40px, 10vw, 110px) var(--dot-gutter) clamp(48px, 10vw, 120px);
 }
 
-.checkout__header {
-  padding: clamp(24px, 5vw, 44px) clamp(20px, 6vw, 72px);
-}
-
-.checkout__brand-logo {
-  display: block;
-  width: 132px;
-  max-width: 40vw;
-  height: auto;
-}
-
-/* Centred in what's left under the header, so the page reads as a single quiet
-   statement rather than content pinned to the top of an empty screen. */
 .checkout__panel {
-  flex: 1;
+  max-width: 34rem;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  max-width: 620px;
-  padding: 0 clamp(20px, 6vw, 72px) clamp(60px, 12vh, 120px);
+  gap: 18px;
 }
 
 .checkout__eyebrow {
   margin: 0;
-  font-family: var(--ck-font-body);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 500;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--ck-accent);
+  color: var(--dot-accent);
 }
 
 .checkout__title {
-  margin: 18px 0 0;
-  font-family: var(--ck-font-display);
-  font-weight: 500;
-  font-size: clamp(2.2rem, 6vw, 3.4rem);
-  line-height: 1.05;
+  margin: 0;
+  font-family: var(--dot-font-display);
+  font-weight: 400;
+  font-size: clamp(2.4rem, 9vw, 3.8rem);
+  line-height: 1.04;
   letter-spacing: -0.015em;
-  color: var(--ck-ink);
-}
-
-/* A hairline instead of a rule: the same gold thread used across the shop. */
-.checkout__title::after {
-  content: "";
-  display: block;
-  width: 64px;
-  height: 1px;
-  margin-top: clamp(22px, 4vw, 32px);
-  background: color-mix(in srgb, var(--ck-accent) 55%, transparent);
+  color: var(--dot-ink);
+  text-wrap: balance;
 }
 
 .checkout__lede {
-  margin: clamp(22px, 4vw, 30px) 0 0;
-  font-family: var(--ck-font-body);
-  font-size: clamp(1rem, 1.15vw, 1.08rem);
-  line-height: 1.65;
-  color: var(--ck-ink);
-  max-width: 46ch;
+  margin: 0;
+  font-size: clamp(0.96rem, 3.6vw, 1.08rem);
+  font-weight: 300;
+  line-height: 1.72;
+  color: var(--dot-ink);
 }
 
 .checkout__note {
-  margin: 16px 0 0;
-  font-family: var(--ck-font-body);
-  font-size: 0.92rem;
-  line-height: 1.6;
-  color: var(--ck-ink-soft);
-  max-width: 46ch;
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 300;
+  line-height: 1.7;
+  color: var(--dot-ink-soft);
 }
 
 .checkout__link {
-  color: var(--ck-accent);
+  color: var(--dot-accent);
   text-decoration: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--ck-accent) 40%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--dot-accent) 40%, transparent);
 }
-.checkout__link:hover,
-.checkout__link:focus-visible {
-  border-bottom-color: var(--ck-accent);
+
+.checkout__link:hover {
+  border-bottom-color: var(--dot-accent);
 }
 
 .checkout__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: clamp(32px, 5vw, 44px);
+  margin-top: 14px;
 }
 
 .checkout__btn {
-  font-family: var(--ck-font-body);
-  font-size: 0.86rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  text-decoration: none;
   padding: 14px 26px;
   border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
   border: 1px solid transparent;
-  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  transition: filter 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 .checkout__btn--primary {
-  background: var(--ck-accent);
-  color: var(--ck-bg);
+  color: var(--dot-bg);
+  background: var(--dot-accent);
 }
-.checkout__btn--primary:hover,
-.checkout__btn--primary:focus-visible {
-  background: color-mix(in srgb, var(--ck-accent) 82%, #ffffff);
+
+.checkout__btn--primary:hover {
+  filter: brightness(1.08);
 }
 
 .checkout__btn--quiet {
-  color: var(--ck-ink);
-  border-color: color-mix(in srgb, var(--ck-accent) 38%, transparent);
-}
-.checkout__btn--quiet:hover,
-.checkout__btn--quiet:focus-visible {
-  color: var(--ck-accent);
-  border-color: color-mix(in srgb, var(--ck-accent) 70%, transparent);
+  color: var(--dot-ink);
+  border-color: color-mix(in srgb, var(--dot-accent) 40%, transparent);
 }
 
-.checkout__btn:focus-visible {
-  outline: 1px solid var(--ck-accent);
-  outline-offset: 3px;
-}
-
-@media (max-width: 480px) {
-  .checkout__actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .checkout__btn {
-    text-align: center;
-  }
+.checkout__btn--quiet:hover {
+  color: var(--dot-accent);
+  border-color: var(--dot-accent);
 }

@@ -1,408 +1,578 @@
-.piece-detail {
-  /* Aliases onto the house palette in index.css. The shop and the scroll film
-     must not hold separate copies of these hexes — that's how they drift. */
-  --pd-bg: var(--dot-bg);
-  --pd-ink: var(--dot-ink);
-  --pd-ink-soft: var(--dot-ink-soft);
-  --pd-accent: var(--dot-accent);
-  --pd-font-display: var(--dot-font-display);
-  --pd-font-body: var(--dot-font-body);
+/* ==========================================================================
+   One piece.
 
-  min-height: 100vh;
-  background: var(--pd-bg);
-  color: var(--pd-ink);
-  padding: clamp(24px, 4vw, 56px) clamp(20px, 5vw, 72px) clamp(64px, 8vw, 120px);
-}
+   Phone: the photographs run edge to edge and you swipe them, then the label,
+   the scale drawing, and the enquiry. The action sits pinned above the home
+   indicator so it's never more than a thumb away.
+   Desktop: two columns, the media sticky while the copy scrolls past it.
+   ========================================================================== */
 
-.piece-detail--empty {
+.pd {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 18px;
-  min-height: 70vh;
 }
 
-.piece-detail__empty-title {
-  font-family: var(--pd-font-display);
-  font-weight: 500;
-  font-size: clamp(1.6rem, 3vw, 2.2rem);
-  margin: 0;
-}
-
-.piece-detail__status {
-  font-family: var(--pd-font-body);
-  color: var(--pd-ink-soft);
-}
-
-.piece-detail__back {
-  display: inline-block;
-  font-family: var(--pd-font-body);
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--pd-ink-soft);
-  text-decoration: none;
-  margin-bottom: clamp(28px, 4vw, 48px);
-  transition: color 0.3s ease;
-}
-
-.piece-detail__back:hover {
-  color: var(--pd-accent);
-}
-
-.piece-detail__layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
-  gap: clamp(32px, 5vw, 72px);
-  align-items: start;
-}
-
-/* --- media --- */
-
-.piece-detail__stage {
-  aspect-ratio: 4 / 5;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--pd-ink) 6%, var(--pd-bg));
-  border: 1px solid color-mix(in srgb, var(--pd-accent) 16%, transparent);
-}
-
-.piece-detail__stage-media {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.piece-detail__placeholder {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    155deg,
-    color-mix(in srgb, var(--pd-accent) 8%, var(--pd-bg)),
-    var(--pd-bg)
-  );
-}
-
-.piece-detail__caption {
-  margin: 10px 2px 0;
-  font-family: var(--pd-font-body);
-  font-size: 0.76rem;
-  color: var(--pd-ink-soft);
-}
-
-.piece-detail__thumbs {
-  display: flex;
-  gap: 10px;
-  margin-top: 12px;
-  flex-wrap: wrap;
-}
-
-.piece-detail__thumb {
-  width: 64px;
-  height: 80px;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--pd-accent) 20%, transparent);
-  background: color-mix(in srgb, var(--pd-ink) 6%, var(--pd-bg));
-  cursor: pointer;
-  overflow: hidden;
-  opacity: 0.6;
-  transition: opacity 0.3s ease, border-color 0.3s ease;
-}
-
-.piece-detail__thumb:hover {
-  opacity: 0.85;
-}
-
-.piece-detail__thumb.is-active {
-  opacity: 1;
-  border-color: var(--pd-accent);
-}
-
-.piece-detail__thumb:focus-visible {
-  outline: 1px solid var(--pd-accent);
-  outline-offset: 2px;
-}
-
-.piece-detail__thumb-media {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.piece-detail__thumb-placeholder {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* --- info column --- */
-
-.piece-detail__eyebrow {
-  margin: 0;
-  font-family: var(--pd-font-body);
-  font-size: 0.72rem;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--pd-accent);
-}
-
-.piece-detail__title {
-  margin: 16px 0 0;
-  font-family: var(--pd-font-display);
-  font-weight: 500;
-  font-size: clamp(1.9rem, 3.4vw, 2.7rem);
-  line-height: 1.08;
-}
-
-.piece-detail__pill {
-  display: inline-block;
-  margin: 16px 0 0;
-  font-family: var(--pd-font-body);
+.pd__back {
+  align-self: flex-start;
+  padding: clamp(16px, 4vw, 34px) var(--dot-gutter) 0;
   font-size: 0.68rem;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--pd-ink) 40%, transparent);
-  color: var(--pd-ink);
+  text-decoration: none;
+  color: var(--dot-ink-soft);
+  transition: color 0.25s ease;
 }
 
-.piece-detail__price {
-  margin: 18px 0 0;
-  font-family: var(--pd-font-body);
-  font-size: 0.9rem;
-  letter-spacing: 0.1em;
-  color: var(--pd-accent);
+.pd__back:hover {
+  color: var(--dot-accent);
 }
 
-.piece-detail__low-stock {
-  margin: 6px 0 0;
-  font-family: var(--pd-font-body);
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--pd-accent);
-}
-
-.piece-detail__sold-out {
-  margin: 28px 0 0;
-  font-family: var(--pd-font-body);
-  font-size: 0.78rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--pd-ink-soft);
-}
-
-.piece-detail__buy {
-  margin: 28px 0 0;
+.pd__layout {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
+  gap: clamp(24px, 5vw, 40px);
+  padding-top: clamp(14px, 3vw, 34px);
 }
 
-/* A rounded pill, distinct from the square-edged enquiry button — this is
-   the primary action, weighted like the scroll film's .sw-topcta. */
-.piece-detail__buy-btn {
-  display: inline-block;
-  font-family: var(--pd-font-body);
-  font-weight: 600;
-  font-size: 0.86rem;
-  color: var(--pd-bg);
-  background: var(--pd-accent);
-  border: none;
-  border-radius: 999px;
-  padding: 13px 30px;
-  cursor: pointer;
-  transition: opacity 0.3s ease;
-}
+/* Media ------------------------------------------------------------------- */
 
-.piece-detail__buy-btn:hover {
-  opacity: 0.85;
-}
-
-.piece-detail__buy-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.piece-detail__buy-btn:focus-visible {
-  outline: 2px solid var(--pd-ink);
-  outline-offset: 3px;
-}
-
-.piece-detail__description {
-  margin: 26px 0 0;
-  max-width: 46ch;
-  font-family: var(--pd-font-body);
-  font-weight: 300;
-  font-size: 0.98rem;
-  line-height: 1.7;
-  color: var(--pd-ink-soft);
-  white-space: pre-line;
-}
-
-.piece-detail__specs {
-  margin: 30px 0 0;
-  padding-top: 22px;
-  border-top: 1px solid color-mix(in srgb, var(--pd-accent) 22%, transparent);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.piece-detail__spec {
-  display: flex;
-  gap: 16px;
-  font-family: var(--pd-font-body);
-  font-size: 0.84rem;
-}
-
-.piece-detail__spec dt {
-  min-width: 110px;
-  color: var(--pd-ink-soft);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-size: 0.7rem;
-  padding-top: 2px;
-}
-
-.piece-detail__spec dd {
-  margin: 0;
-  color: var(--pd-ink);
-}
-
-.piece-detail .scale-figure {
-  margin-top: 28px;
-}
-
-.piece-detail__action {
-  margin-top: 34px;
-  padding-top: 28px;
-  border-top: 1px solid color-mix(in srgb, var(--pd-accent) 22%, transparent);
-}
-
-.piece-detail__form {
+.pd__media {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 40ch;
 }
 
-.piece-detail__form-title {
-  margin: 0 0 4px;
-  font-family: var(--pd-font-display);
-  font-weight: 500;
-  font-size: 1.15rem;
+.pd__track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-.piece-detail__field {
+.pd__track::-webkit-scrollbar {
+  display: none;
+}
+
+.pd__slide {
+  position: relative;
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  /* Reserved before the file lands — the copy under it never jumps. */
+  aspect-ratio: 4 / 5;
+  background: var(--dot-bg-raised);
+}
+
+.pd__slide-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pd__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--dot-ink-soft) 60%, transparent);
+}
+
+.pd__dots {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.pd__dot {
+  appearance: none;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  /* A 7px dot with a 44px hit area — the target is the padding, not the mark. */
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.pd__dot::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dot-ink-soft) 38%, transparent);
+  transition: background 0.25s ease, transform 0.25s ease;
+}
+
+.pd__dot.is-active::before {
+  background: var(--dot-accent);
+  transform: scale(1.15);
+}
+
+.pd__caption {
+  margin: 0;
+  padding-inline: var(--dot-gutter);
+  text-align: center;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  color: var(--dot-ink-soft);
+}
+
+/* Thumbs are the desktop way to change slide; the dots are the phone's. */
+.pd__thumbs {
+  display: none;
+  gap: 14px;
+  padding-inline: var(--dot-gutter);
+}
+
+.pd__thumb {
+  appearance: none;
+  padding: 0;
+  cursor: pointer;
+  width: 92px;
+  height: 115px;
+  overflow: hidden;
+  background: var(--dot-bg-raised);
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 20%, transparent);
+  transition: border-color 0.25s ease, opacity 0.25s ease;
+  opacity: 0.7;
+}
+
+.pd__thumb:hover,
+.pd__thumb.is-active {
+  opacity: 1;
+  border-color: var(--dot-accent);
+}
+
+.pd__thumb-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pd__thumb-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Info -------------------------------------------------------------------- */
+
+.pd__info {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-family: var(--pd-font-body);
+  gap: 14px;
+  padding: clamp(12px, 3vw, 6px) var(--dot-gutter) 0;
 }
 
-.piece-detail__field span {
-  font-size: 0.68rem;
-  letter-spacing: 0.14em;
+.pd__eyebrow {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--pd-ink-soft);
+  color: var(--dot-accent);
 }
 
-.piece-detail__field input,
-.piece-detail__field textarea {
-  font-family: var(--pd-font-body);
-  font-size: 0.9rem;
-  color: var(--pd-ink);
-  background: color-mix(in srgb, var(--pd-ink) 6%, var(--pd-bg));
-  border: 1px solid color-mix(in srgb, var(--pd-accent) 24%, transparent);
-  padding: 10px 12px;
+.pd__info > .pd__eyebrow {
+  color: var(--dot-ink-soft);
+}
+
+.pd__title {
+  margin: 0;
+  font-family: var(--dot-font-display);
+  font-weight: 400;
+  font-size: clamp(2.15rem, 8vw, 3.25rem);
+  line-height: 1.06;
+  letter-spacing: -0.012em;
+  color: var(--dot-ink);
+  text-wrap: balance;
+}
+
+.pd__pricerow {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pd__price {
+  font-size: clamp(1.2rem, 4.6vw, 1.5rem);
+  font-weight: 500;
+  color: var(--dot-ink);
+}
+
+.pd__pill {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dot-ink-soft);
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 28%, transparent);
+}
+
+.pd__pill--gold {
+  color: var(--dot-accent);
+  border-color: color-mix(in srgb, var(--dot-accent) 45%, transparent);
+}
+
+.pd__description {
+  margin: 6px 0 0;
+  max-width: 40em;
+  font-size: clamp(0.96rem, 3.6vw, 1.02rem);
+  font-weight: 300;
+  line-height: 1.75;
+  color: var(--dot-ink);
+  /* The studio writes these with blank lines between paragraphs. */
+  white-space: pre-line;
+}
+
+.pd__specs {
+  margin: clamp(16px, 4vw, 26px) 0 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pd__spec {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid color-mix(in srgb, var(--dot-accent) 20%, transparent);
+}
+
+.pd__spec:last-child {
+  border-bottom: 1px solid color-mix(in srgb, var(--dot-accent) 20%, transparent);
+}
+
+.pd__spec dt {
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dot-ink-soft);
+}
+
+.pd__spec dd {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 300;
+  color: var(--dot-ink);
+  text-align: right;
+}
+
+/* Scale band -------------------------------------------------------------- */
+
+.pd__scale {
+  margin-top: clamp(22px, 5vw, 34px);
+  padding: clamp(20px, 5vw, 26px);
+  background: var(--dot-bg-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pd__scale-note {
+  margin: 0;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: 1.1rem;
+  color: var(--dot-accent);
+}
+
+/* The action bar ---------------------------------------------------------- */
+
+.pd__bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.pd__bar-meta {
+  display: none;
+}
+
+.pd__buy {
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.94rem;
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+  padding: 15px 30px;
+  border: 1px solid var(--dot-accent);
+  border-radius: 999px;
+  color: var(--dot-bg);
+  background: var(--dot-accent);
+  transition: filter 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.pd__buy:hover {
+  filter: brightness(1.08);
+}
+
+.pd__buy[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Not for sale through checkout — quieter, but still the page's one action. */
+.pd__buy--quiet {
+  color: var(--dot-ink);
+  background: transparent;
+  border-color: color-mix(in srgb, var(--dot-accent) 45%, transparent);
+}
+
+.pd__buy--quiet:hover {
+  color: var(--dot-accent);
+  border-color: var(--dot-accent);
+}
+
+/* Enquiry ----------------------------------------------------------------- */
+
+.pd__action {
+  margin-top: clamp(30px, 6vw, 44px);
+  padding-top: clamp(24px, 5vw, 30px);
+  border-top: 1px solid var(--dot-hairline);
+  scroll-margin-top: calc(var(--dot-bar-h) + 20px);
+}
+
+.pd__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pd__form-title {
+  margin: 0;
+  font-family: var(--dot-font-display);
+  font-weight: 400;
+  font-size: clamp(1.4rem, 5vw, 1.7rem);
+  color: var(--dot-ink);
+}
+
+.pd__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pd__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 0;
+}
+
+.pd__field > span {
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dot-ink-soft);
+}
+
+.pd__field input,
+.pd__field textarea {
+  font-family: inherit;
+  /* 16px, so iOS doesn't zoom the page when the field takes focus. */
+  font-size: 1rem;
+  font-weight: 300;
+  color: var(--dot-ink);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 30%, transparent);
+  border-radius: 0;
+  padding: 13px 14px;
+  transition: border-color 0.2s ease;
+}
+
+.pd__field input {
+  min-height: 48px;
+}
+
+.pd__field textarea {
   resize: vertical;
+  line-height: 1.6;
 }
 
-.piece-detail__field input:focus-visible,
-.piece-detail__field textarea:focus-visible {
-  outline: 1px solid var(--pd-accent);
-  outline-offset: 1px;
+.pd__field input:focus,
+.pd__field textarea:focus {
+  border-color: var(--dot-accent);
 }
 
-/* Off-screen only. It's also aria-hidden and untabbable, so a real visitor
-   never encounters it — only a bot filling every field blindly does. */
-.piece-detail__honeypot {
+.pd__enquire {
+  align-self: flex-start;
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 13px 24px;
+  border-radius: 999px;
+  color: var(--dot-ink);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 45%, transparent);
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.pd__enquire:hover {
+  color: var(--dot-accent);
+  border-color: var(--dot-accent);
+}
+
+.pd__enquire[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pd__sent,
+.pd__error {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  font-weight: 300;
+  color: var(--dot-ink-soft);
+}
+
+.pd__error a {
+  color: var(--dot-accent);
+}
+
+.pd__honeypot {
   position: absolute;
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 
-.piece-detail__error {
+/* Empty and loading states ------------------------------------------------ */
+
+.pd--empty {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+  padding: clamp(48px, 12vw, 120px) var(--dot-gutter);
+}
+
+.pd__empty-title {
   margin: 0;
-  font-family: var(--pd-font-body);
+  font-family: var(--dot-font-display);
+  font-weight: 400;
+  font-size: clamp(1.9rem, 7vw, 2.8rem);
+  line-height: 1.1;
+  color: var(--dot-ink);
+}
+
+.pd__status {
+  margin: 0;
   font-size: 0.8rem;
-  color: color-mix(in srgb, #e0836b 80%, var(--pd-ink));
-}
-
-.piece-detail__error a {
-  color: var(--pd-accent);
-}
-
-.piece-detail__sent {
-  font-family: var(--pd-font-body);
-  font-size: 0.92rem;
-  color: var(--pd-ink);
-}
-
-.piece-detail__enquire {
-  display: inline-block;
-  align-self: flex-start;
-  font-family: var(--pd-font-body);
-  font-size: 0.78rem;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--pd-bg);
-  background: var(--pd-accent);
-  padding: 14px 28px;
-  border: none;
-  cursor: pointer;
-  text-decoration: none;
-  transition: opacity 0.3s ease;
+  color: var(--dot-ink-soft);
 }
 
-.piece-detail__enquire:hover {
-  opacity: 0.85;
-}
+/* Phone: the bar leaves the flow and pins itself. --------------------------- */
 
-.piece-detail__enquire:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.piece-detail__enquire:focus-visible {
-  outline: 2px solid var(--pd-ink);
-  outline-offset: 3px;
-}
-
-@media (max-width: 820px) {
-  .piece-detail__layout {
-    grid-template-columns: 1fr;
+@media (max-width: 899px) {
+  .pd__bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    margin: 0;
+    padding: 12px max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+    background: color-mix(in srgb, var(--dot-bg) 94%, transparent);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid color-mix(in srgb, var(--dot-accent) 22%, transparent);
   }
-}
-
-@media (max-width: 560px) {
-  .piece-detail__stage {
-    aspect-ratio: 1 / 1;
-  }
-
-  .piece-detail__spec {
+  .pd__bar-meta {
+    display: flex;
     flex-direction: column;
     gap: 2px;
-  }
-
-  .piece-detail__spec dt {
     min-width: 0;
+  }
+  .pd__bar-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dot-ink-soft);
+  }
+  .pd__bar-price {
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--dot-ink);
+  }
+  .pd__buy {
+    margin-left: auto;
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 14px 22px;
+    font-size: 0.88rem;
+  }
+}
+
+/* Desktop: two columns, sticky media. -------------------------------------- */
+
+@media (min-width: 900px) {
+  .pd__layout {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: clamp(40px, 5vw, 72px);
+    padding-inline: var(--dot-gutter);
+  }
+  .pd__media {
+    flex: 0 0 54%;
+    position: sticky;
+    /* Clears the sticky topbar. */
+    top: calc(var(--dot-bar-h) + 24px);
+  }
+  .pd__track,
+  .pd__caption,
+  .pd__thumbs {
+    padding-inline: 0;
+  }
+  .pd__caption {
+    text-align: left;
+  }
+  .pd__dots {
+    display: none;
+  }
+  .pd__thumbs {
+    display: flex;
+  }
+  .pd__info {
+    flex: 1 1 0;
+    padding: 6px 0 clamp(40px, 6vw, 80px);
+  }
+  .pd__fields {
+    flex-direction: row;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pd__track {
+    scroll-behavior: auto;
+  }
+  .pd__dot::before {
+    transition: none;
   }
 }

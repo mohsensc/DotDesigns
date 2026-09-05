@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { PRICE_BANDS, formatPrice } from "../lib/catalog";
 import { CONTACT_EMAIL, looksLikeEmail, sendInquiry } from "../lib/inquiry";
 import { useDocumentTitle } from "../lib/use-document-title";
+import SiteChrome from "../components/SiteChrome.tsx";
 import "./SpecialRequest.css";
 
 type FormState = {
@@ -101,9 +102,9 @@ export default function SpecialRequest() {
 
   if (sendState === "sent") {
     return (
-      <main className="request">
+      <SiteChrome className="request">
         <Link to="/shop" className="request__back">
-          &larr; Back to the shop
+          &larr;&nbsp; Back to the shop
         </Link>
         <header className="request__header">
           <p className="request__eyebrow">Special Request</p>
@@ -112,14 +113,14 @@ export default function SpecialRequest() {
             The studio has your request and will reply to {form.email} directly.
           </p>
         </header>
-      </main>
+      </SiteChrome>
     );
   }
 
   return (
-    <main className="request">
+    <SiteChrome className="request">
       <Link to="/shop" className="request__back">
-        &larr; Back to the shop
+        &larr;&nbsp; Back to the shop
       </Link>
 
       <header className="request__header">
@@ -249,6 +250,6 @@ export default function SpecialRequest() {
           </p>
         </aside>
       </div>
-    </main>
+    </SiteChrome>
   );
 }

@@ -1,208 +1,257 @@
+/* ==========================================================================
+   The shop index.
+
+   Phone first: photography runs the full width of the screen, copy is inset.
+   Colours, fonts and chrome all come from the house tokens in index.css, so
+   this page and the scroll film are the same site rather than two that agree.
+   ========================================================================== */
+
 .shop {
-  /* Aliases onto the house palette in index.css. The shop and the scroll film
-     must not hold separate copies of these hexes — that's how they drift. */
-  --sh-bg: var(--dot-bg);
-  --sh-ink: var(--dot-ink);
-  --sh-ink-soft: var(--dot-ink-soft);
-  --sh-accent: var(--dot-accent);
-  --sh-font-display: var(--dot-font-display);
-  --sh-font-body: var(--dot-font-body);
-
-  min-height: 100vh;
-  background: var(--sh-bg);
-  color: var(--sh-ink);
-  padding: clamp(24px, 4vw, 56px) clamp(20px, 5vw, 72px) clamp(64px, 8vw, 120px);
-}
-
-.shop__header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: clamp(20px, 3vw, 32px);
-  border-bottom: 1px solid color-mix(in srgb, var(--sh-accent) 24%, transparent);
+  flex-direction: column;
 }
 
-.shop__brand-logo {
-  display: block;
-  width: 120px;
-  max-width: 34vw;
-  height: auto;
+/* Header band ------------------------------------------------------------- */
+/* A still from the film, continued: same footage, same scrim direction as the
+   film's mobile copy layer, so arriving here reads as the next scene. */
+
+.shop__band {
+  position: relative;
+  /* Sits under the sticky bar, which is why the copy is bottom-aligned. */
+  min-height: clamp(360px, 52vw, 500px);
+  /* Runs up under the translucent bar, then pads its copy back clear of it. */
+  margin-top: calc(-1 * var(--dot-bar-h));
+  padding-top: var(--dot-bar-h);
+  display: flex;
+  overflow: hidden;
 }
 
-.shop__back {
-  font-family: var(--sh-font-body);
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sh-ink-soft);
-  text-decoration: none;
-  transition: color 0.3s ease;
+.shop__band-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 46%;
 }
 
-.shop__back:hover {
-  color: var(--sh-accent);
+.shop__band-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    0deg,
+    var(--dot-bg) 2%,
+    color-mix(in srgb, var(--dot-bg) 62%, transparent) 44%,
+    color-mix(in srgb, var(--dot-bg) 24%, transparent) 100%
+  );
 }
 
-.shop__intro {
-  max-width: 640px;
-  margin: clamp(40px, 6vw, 72px) 0 clamp(32px, 5vw, 56px);
+.shop__band-copy {
+  position: relative;
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: clamp(28px, 6vw, 96px) var(--dot-gutter) clamp(24px, 4vw, 40px);
+  max-width: 780px;
 }
 
 .shop__eyebrow {
   margin: 0;
-  font-family: var(--sh-font-body);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  font-weight: 500;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--sh-accent);
+  color: var(--dot-accent);
 }
 
 .shop__title {
-  margin: 16px 0 0;
-  font-family: var(--sh-font-display);
-  font-weight: 500;
-  font-size: clamp(2.1rem, 4.2vw, 3.2rem);
+  margin: 0;
+  font-family: var(--dot-font-display);
+  font-weight: 400;
+  font-size: clamp(2.35rem, 8vw, 4rem);
   line-height: 1.05;
+  letter-spacing: -0.015em;
+  color: var(--dot-ink);
+  text-wrap: balance;
 }
 
 .shop__lede {
-  margin: 18px 0 0;
-  font-family: var(--sh-font-body);
+  margin: 0;
+  max-width: 34em;
+  font-size: clamp(0.92rem, 3.4vw, 1.06rem);
   font-weight: 300;
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--sh-ink-soft);
+  line-height: 1.65;
+  color: var(--dot-ink);
 }
+
+.shop__back {
+  margin-top: 4px;
+  align-self: flex-start;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--dot-ink-soft);
+  transition: color 0.25s ease;
+}
+
+.shop__back:hover {
+  color: var(--dot-accent);
+}
+
+/* Filters ----------------------------------------------------------------- */
+/* One scrollable row on a phone rather than a wrapped block of buttons — the
+   categories are a short list you swipe, not a form you fill in. */
 
 .shop__filters {
   display: flex;
-  flex-wrap: wrap;
-  gap: clamp(18px, 3vw, 34px);
-  margin-bottom: clamp(32px, 5vw, 56px);
+  gap: 8px;
+  padding: clamp(24px, 5vw, 44px) var(--dot-gutter) 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shop__filters::-webkit-scrollbar {
+  display: none;
 }
 
 .shop__filter {
-  background: none;
-  border: none;
-  padding: 0 0 8px;
-  font-family: var(--sh-font-body);
-  font-size: 0.78rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sh-ink-soft);
+  flex: 0 0 auto;
+  appearance: none;
   cursor: pointer;
-  border-bottom: 1px solid transparent;
-  transition: color 0.3s ease, border-color 0.3s ease;
+  white-space: nowrap;
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 9px 18px;
+  border-radius: 999px;
+  color: var(--dot-ink-soft);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 28%, transparent);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
 .shop__filter:hover {
-  color: var(--sh-ink);
+  color: var(--dot-ink);
+  border-color: color-mix(in srgb, var(--dot-accent) 55%, transparent);
 }
 
 .shop__filter.is-active {
-  color: var(--sh-ink);
-  border-bottom-color: var(--sh-accent);
+  color: var(--dot-bg);
+  font-weight: 500;
+  background: var(--dot-accent);
+  border-color: var(--dot-accent);
 }
 
-.shop__filter:focus-visible {
-  outline: 1px solid var(--sh-accent);
-  outline-offset: 3px;
-}
-
-.shop__status {
-  font-family: var(--sh-font-body);
-  color: var(--sh-ink-soft);
-  padding: 40px 0;
-}
+/* Grid -------------------------------------------------------------------- */
 
 .shop__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: clamp(28px, 3vw, 44px);
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(44px, 8vw, 54px) 0;
+  padding-top: clamp(28px, 6vw, 48px);
 }
+
+/* One column on a phone, and the photographs go edge to edge: the card insets
+   its own text instead, so the images are as big as the screen allows. */
+.shop__grid > * {
+  --piece-card-inset: var(--dot-gutter);
+}
+
+@media (min-width: 600px) {
+  .shop__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(44px, 5vw, 56px) clamp(24px, 3.2vw, 40px);
+    padding-inline: var(--dot-gutter);
+  }
+  .shop__grid > * {
+    --piece-card-inset: 0px;
+  }
+}
+
+@media (min-width: 1000px) {
+  .shop__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.shop__status {
+  margin: 0;
+  padding: clamp(48px, 10vw, 96px) var(--dot-gutter);
+  font-size: 0.86rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dot-ink-soft);
+}
+
+/* Special request band ---------------------------------------------------- */
 
 .shop__cta {
-  margin-top: clamp(72px, 9vw, 120px);
-  padding-top: clamp(32px, 5vw, 48px);
-  border-top: 1px solid color-mix(in srgb, var(--sh-accent) 24%, transparent);
-  max-width: 560px;
-  text-align: left;
+  margin: clamp(64px, 10vw, 96px) var(--dot-gutter) 0;
+  padding: clamp(32px, 5vw, 56px) 0;
+  border-top: 1px solid var(--dot-hairline);
+  border-bottom: 1px solid var(--dot-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
-.shop__cta-eyebrow {
-  margin: 0;
-  font-family: var(--sh-font-body);
-  font-size: 0.72rem;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: var(--sh-accent);
+.shop__cta-head,
+.shop__cta-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .shop__cta-title {
-  margin: 14px 0 0;
-  font-family: var(--sh-font-display);
-  font-weight: 500;
-  font-size: clamp(1.5rem, 2.6vw, 2rem);
+  margin: 0;
+  font-family: var(--dot-font-display);
+  font-weight: 400;
+  font-size: clamp(1.7rem, 6vw, 2.6rem);
+  line-height: 1.1;
+  color: var(--dot-ink);
+  text-wrap: balance;
 }
 
 .shop__cta-lede {
-  margin: 14px 0 0;
-  font-family: var(--sh-font-body);
+  margin: 0;
+  max-width: 38em;
+  font-size: clamp(0.92rem, 3.4vw, 1rem);
   font-weight: 300;
-  color: var(--sh-ink-soft);
-  line-height: 1.6;
+  line-height: 1.7;
+  color: var(--dot-ink-soft);
 }
 
 .shop__cta-link {
-  margin-top: 26px;
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  font-family: var(--sh-font-body);
-  font-size: 0.78rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sh-ink);
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 13px 24px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
   text-decoration: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--sh-accent) 50%, transparent);
-  padding-bottom: 6px;
-  transition: border-color 0.3s ease;
+  color: var(--dot-bg);
+  background: var(--dot-accent);
+  transition: filter 0.2s ease;
 }
 
 .shop__cta-link:hover {
-  border-color: var(--sh-accent);
+  filter: brightness(1.08);
 }
 
-.shop__cta-arrow {
-  color: var(--sh-accent);
-  transition: transform 0.3s ease;
-}
-
-.shop__cta-link:hover .shop__cta-arrow {
-  transform: translateX(4px);
-}
-
-.shop__cta-link:focus-visible {
-  outline: 1px solid var(--sh-accent);
-  outline-offset: 4px;
-}
-
-@media (max-width: 560px) {
-  .shop__header {
-    flex-wrap: wrap;
-    gap: 12px;
+@media (min-width: 900px) {
+  .shop__cta {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 64px;
   }
-
-  .shop__back {
-    font-size: 0.68rem;
+  .shop__cta-head,
+  .shop__cta-body {
+    flex: 1 1 0;
   }
-
-  .shop__filters {
-    gap: 16px 22px;
-  }
-
-  .shop__grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  .shop__cta-body {
     gap: 22px;
+    padding-top: 6px;
   }
 }

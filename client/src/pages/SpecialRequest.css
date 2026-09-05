@@ -1,302 +1,325 @@
-.request {
-  /* Aliases onto the house palette in index.css. The shop and the scroll film
-     must not hold separate copies of these hexes — that's how they drift. */
-  --rq-bg: var(--dot-bg);
-  --rq-ink: var(--dot-ink);
-  --rq-ink-soft: var(--dot-ink-soft);
-  --rq-accent: var(--dot-accent);
-  --rq-font-display: var(--dot-font-display);
-  --rq-font-body: var(--dot-font-body);
+/* ==========================================================================
+   Special request — the form for work that doesn't exist yet.
 
-  min-height: 100vh;
-  background: var(--rq-bg);
-  color: var(--rq-ink);
-  padding: clamp(24px, 4vw, 56px) clamp(20px, 5vw, 72px) clamp(64px, 8vw, 120px);
+   Same chrome, same tokens, same field treatment as the piece page's enquiry.
+   Phone first: one column, the message preview folded to the bottom where it
+   belongs (it's a reassurance, not a step).
+   ========================================================================== */
+
+.request {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--dot-gutter) clamp(48px, 8vw, 96px);
 }
 
 .request__back {
-  display: inline-block;
-  font-family: var(--rq-font-body);
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
+  align-self: flex-start;
+  padding-top: clamp(16px, 4vw, 34px);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--rq-ink-soft);
   text-decoration: none;
-  margin-bottom: clamp(28px, 4vw, 48px);
-  transition: color 0.3s ease;
+  color: var(--dot-ink-soft);
+  transition: color 0.25s ease;
 }
 
 .request__back:hover {
-  color: var(--rq-accent);
+  color: var(--dot-accent);
 }
 
 .request__header {
-  max-width: 640px;
-  margin-bottom: clamp(36px, 5vw, 60px);
+  max-width: 44rem;
+  margin: clamp(28px, 6vw, 56px) 0 clamp(32px, 6vw, 56px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .request__eyebrow {
   margin: 0;
-  font-family: var(--rq-font-body);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  font-weight: 500;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--rq-accent);
+  color: var(--dot-accent);
 }
 
 .request__title {
-  margin: 16px 0 0;
-  font-family: var(--rq-font-display);
-  font-weight: 500;
-  font-size: clamp(2rem, 4vw, 2.9rem);
-  line-height: 1.08;
+  margin: 0;
+  font-family: var(--dot-font-display);
+  font-weight: 400;
+  font-size: clamp(2.2rem, 8vw, 3.6rem);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  color: var(--dot-ink);
+  text-wrap: balance;
 }
 
 .request__lede {
-  margin: 18px 0 0;
-  font-family: var(--rq-font-body);
+  margin: 0;
+  max-width: 36em;
+  font-size: clamp(0.94rem, 3.4vw, 1.04rem);
   font-weight: 300;
-  font-size: 1rem;
-  line-height: 1.65;
-  color: var(--rq-ink-soft);
+  line-height: 1.7;
+  color: var(--dot-ink-soft);
 }
 
 .request__layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.8fr);
-  gap: clamp(32px, 5vw, 72px);
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(40px, 6vw, 64px);
 }
 
-/* --- form --- */
+/* Form -------------------------------------------------------------------- */
 
 .request__form {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-}
-
-.request__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: clamp(18px, 3vw, 22px);
+  flex: 1 1 0;
 }
 
 .request__field {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border: none;
-  padding: 0;
-  margin: 0;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
-.request__field label,
-.request__fieldset legend {
-  font-family: var(--rq-font-body);
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
+/* Direct children only. The budget fieldset carries .request__field too, and an
+   unscoped selector uppercased every band's note along with it. */
+.request__field > label,
+.request__fieldset > legend {
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--rq-ink-soft);
+  color: var(--dot-ink-soft);
   padding: 0;
 }
 
 .request__field input,
 .request__field textarea {
-  font-family: var(--rq-font-body);
-  font-size: 0.95rem;
-  color: var(--rq-ink);
+  font-family: inherit;
+  /* 16px — anything smaller and iOS zooms the page on focus. */
+  font-size: 1rem;
+  font-weight: 300;
+  color: var(--dot-ink);
   background: transparent;
-  border: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--rq-accent) 30%, transparent);
-  padding: 8px 2px;
-  outline: none;
-  transition: border-color 0.3s ease;
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 30%, transparent);
+  border-radius: 0;
+  padding: 13px 14px;
+  transition: border-color 0.2s ease;
+}
+
+.request__field input {
+  min-height: 48px;
+}
+
+.request__field textarea {
   resize: vertical;
+  line-height: 1.6;
 }
 
 .request__field input::placeholder,
 .request__field textarea::placeholder {
-  color: color-mix(in srgb, var(--rq-ink-soft) 70%, transparent);
+  color: color-mix(in srgb, var(--dot-ink-soft) 60%, transparent);
 }
 
 .request__field input:focus,
 .request__field textarea:focus {
-  border-color: var(--rq-accent);
+  border-color: var(--dot-accent);
 }
 
-.request__error {
+.request__row {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 3vw, 22px);
+}
+
+.request__fieldset {
   margin: 0;
-  font-family: var(--rq-font-body);
-  font-size: 0.74rem;
-  color: color-mix(in srgb, var(--rq-accent) 70%, #ffb37a);
+  padding: clamp(18px, 4vw, 24px) 0 0;
+  border: 0;
+  border-top: 1px solid var(--dot-hairline);
 }
-
-/* --- price bands --- */
 
 .request__bands {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  margin-top: 14px;
 }
 
 .request__band {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  padding: 14px 4px;
-  border-bottom: 1px solid color-mix(in srgb, var(--rq-accent) 16%, transparent);
+  padding: 15px 4px;
   cursor: pointer;
+  border-bottom: 1px solid color-mix(in srgb, var(--dot-accent) 14%, transparent);
+  transition: border-color 0.2s ease;
 }
 
-.request__band:first-child {
-  border-top: 1px solid color-mix(in srgb, var(--rq-accent) 16%, transparent);
+.request__band:hover {
+  border-color: color-mix(in srgb, var(--dot-accent) 40%, transparent);
 }
 
+/* The real radio stays focusable and keyboard-operable — it's just hidden
+   behind the drawn marker beside it. */
 .request__band input {
   position: absolute;
+  opacity: 0;
   width: 1px;
   height: 1px;
-  opacity: 0;
-  pointer-events: none;
 }
 
 .request__band-marker {
-  flex: none;
-  margin-top: 4px;
-  width: 9px;
-  height: 9px;
-  border: 1px solid color-mix(in srgb, var(--rq-ink-soft) 70%, transparent);
-  border-radius: 50%;
-  transition: border-color 0.3s ease, background 0.3s ease;
+  flex: 0 0 auto;
+  margin-top: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 50%, transparent);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
-.request__band:has(input:checked) .request__band-marker {
-  border-color: var(--rq-accent);
-  background: var(--rq-accent);
+.request__band input:checked ~ .request__band-marker {
+  background: var(--dot-accent);
+  box-shadow: inset 0 0 0 3px var(--dot-bg);
+  border-color: var(--dot-accent);
 }
 
-.request__band:has(input:focus-visible) {
-  outline: 1px solid var(--rq-accent);
+.request__band input:focus-visible ~ .request__band-marker {
+  outline: 2px solid var(--dot-accent);
   outline-offset: 3px;
 }
 
 .request__band-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .request__band-label {
-  font-family: var(--rq-font-body);
-  font-size: 0.92rem;
-  color: var(--rq-ink);
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--dot-ink);
 }
 
 .request__band-note {
-  font-family: var(--rq-font-body);
-  font-size: 0.76rem;
-  color: var(--rq-ink-soft);
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--dot-ink-soft);
 }
 
-/* Visually hidden, not display:none — some bots skip elements set that way. */
+.request__submit {
+  align-self: flex-start;
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.94rem;
+  font-weight: 600;
+  padding: 15px 30px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--dot-bg);
+  background: var(--dot-accent);
+  transition: filter 0.2s ease;
+}
+
+.request__submit:hover {
+  filter: brightness(1.08);
+}
+
+.request__submit[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.request__error {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: color-mix(in srgb, var(--dot-accent) 78%, #ffffff);
+}
+
+.request__fallback {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--dot-ink-soft);
+}
+
+.request__fallback a,
+.request__preview-hint a {
+  color: var(--dot-accent);
+}
+
+/* Honeypot — offscreen, not display:none, since some bots skip that. */
 .request__hp {
   position: absolute;
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 
-.request__fallback {
-  margin: 0;
-  font-family: var(--rq-font-body);
-  font-size: 0.82rem;
-  color: var(--rq-ink-soft);
-}
-
-.request__fallback a {
-  color: var(--rq-accent);
-}
-
-.request__submit {
-  align-self: flex-start;
-  margin-top: 8px;
-  font-family: var(--rq-font-body);
-  font-size: 0.78rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--rq-bg);
-  background: var(--rq-accent);
-  border: none;
-  padding: 14px 30px;
-  cursor: pointer;
-  transition: opacity 0.3s ease;
-}
-
-.request__submit:hover {
-  opacity: 0.85;
-}
-
-.request__submit:focus-visible {
-  outline: 2px solid var(--rq-ink);
-  outline-offset: 3px;
-}
-
-/* --- preview --- */
+/* Preview ----------------------------------------------------------------- */
 
 .request__preview {
-  border: 1px solid color-mix(in srgb, var(--rq-accent) 20%, transparent);
-  padding: clamp(20px, 2.6vw, 28px);
-  position: sticky;
-  top: clamp(24px, 4vw, 56px);
+  flex: 0 0 auto;
+  padding: clamp(20px, 4vw, 26px);
+  background: var(--dot-bg-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .request__preview-label {
-  margin: 0 0 14px;
-  font-family: var(--rq-font-body);
-  font-size: 0.7rem;
-  letter-spacing: 0.24em;
+  margin: 0;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--rq-accent);
+  color: var(--dot-accent);
 }
 
 .request__preview-body {
   margin: 0;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.75;
+  color: var(--dot-ink-soft);
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 0.8rem;
-  line-height: 1.6;
-  color: var(--rq-ink-soft);
-  max-height: 360px;
-  overflow-y: auto;
 }
 
 .request__preview-hint {
-  margin: 18px 0 0;
-  font-family: var(--rq-font-body);
+  margin: 0;
   font-size: 0.78rem;
-  color: var(--rq-ink-soft);
-  line-height: 1.5;
+  font-weight: 300;
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--dot-ink-soft) 80%, transparent);
 }
 
-.request__preview-hint a {
-  color: var(--rq-accent);
-}
-
-@media (max-width: 820px) {
-  .request__layout {
-    grid-template-columns: 1fr;
-  }
-
-  .request__preview {
-    position: static;
-  }
-}
-
-@media (max-width: 560px) {
+@media (min-width: 700px) {
   .request__row {
-    grid-template-columns: 1fr;
+    flex-direction: row;
+  }
+}
+
+@media (min-width: 1000px) {
+  .request__layout {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: clamp(48px, 5vw, 80px);
+  }
+  .request__preview {
+    flex: 0 0 340px;
+    position: sticky;
+    top: calc(var(--dot-bar-h) + 24px);
   }
 }

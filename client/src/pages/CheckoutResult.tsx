@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useDocumentTitle } from "../lib/use-document-title";
 import { CONTACT_EMAIL } from "../lib/inquiry";
-import dotGold from "../assets/dot-gold.png";
+import SiteChrome from "../components/SiteChrome.tsx";
 import "./CheckoutResult.css";
 
 // Where Stripe sends people back to. Two states, one layout.
@@ -18,18 +18,10 @@ export default function CheckoutResult({ outcome }: Props) {
   useDocumentTitle(ok ? "Thank you" : "Checkout cancelled");
 
   return (
-    <main className="checkout">
-      <header className="checkout__header">
-        <Link to="/" className="checkout__brand" aria-label="Dot Designs — home">
-          <img src={dotGold} alt="Dot Designs" className="checkout__brand-logo" />
-        </Link>
-      </header>
-
+    <SiteChrome className="checkout">
       <section className="checkout__panel">
         <p className="checkout__eyebrow">{ok ? "Order received" : "Nothing charged"}</p>
-        <h1 className="checkout__title">
-          {ok ? "Thank you." : "No payment was taken."}
-        </h1>
+        <h1 className="checkout__title">{ok ? "Thank you." : "No payment was taken."}</h1>
 
         {ok ? (
           <>
@@ -70,6 +62,6 @@ export default function CheckoutResult({ outcome }: Props) {
           </Link>
         </div>
       </section>
-    </main>
+    </SiteChrome>
   );
 }
