@@ -23,6 +23,14 @@
   transition: color 0.25s ease;
 }
 
+/* Touch, same as the piece page's back link: 12px of reach, given back as margin. */
+@media (pointer: coarse) {
+  .request__back {
+    padding-bottom: 12px;
+    margin-bottom: -12px;
+  }
+}
+
 .request__back:hover {
   color: var(--dot-accent);
 }

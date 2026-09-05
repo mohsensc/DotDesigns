@@ -65,6 +65,8 @@
 }
 
 .chrome-top__navitem {
+  display: inline-flex;
+  align-items: center;
   padding: 7px 16px;
   border-radius: 999px;
   font-size: 0.82rem;
@@ -86,6 +88,8 @@
 
 .chrome-top__cta {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
   padding: 10px 20px;
   border-radius: 999px;
   font-size: 0.9rem;
@@ -140,7 +144,8 @@
     display: none;
   }
   .chrome-top__ghost {
-    display: block;
+    display: inline-flex;
+    align-items: center;
     margin-left: auto;
   }
   .chrome-top__cta {
@@ -152,6 +157,17 @@
   }
   .chrome-top__cta-short {
     display: inline;
+  }
+}
+
+/* Touch. The pills are sized by their type, which lands them at 33-40px — read
+   fine under a cursor, short under a thumb. Only the box grows; the padding,
+   the type and the pill's look are untouched. */
+@media (pointer: coarse) {
+  .chrome-top__navitem,
+  .chrome-top__cta,
+  .chrome-top__ghost {
+    min-height: 44px;
   }
 }
 

@@ -592,6 +592,20 @@ textarea {
   width: 100%;
 }
 
+/* WebKit's native menulist ignores padding, so the units select came out 23px
+   next to 46px inputs — half the height, and half a thumb. Chrome pads it either
+   way, which is why this only showed up on a phone. appearance:none makes the
+   padding stick; the chevron is drawn back on. */
+.field select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%236b6459' stroke-width='1.6' d='M1 1.5 6 6.5l5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 8px;
+}
+
 .field input:disabled {
   color: var(--studio-ink-soft);
   background: var(--studio-bg);

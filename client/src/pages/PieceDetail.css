@@ -23,6 +23,15 @@
   transition: color 0.25s ease;
 }
 
+/* Touch. The link's box is 32px — its top padding and one line of small caps.
+   The extra 12px comes back out as margin, so the layout below doesn't move. */
+@media (pointer: coarse) {
+  .pd__back {
+    padding-bottom: 12px;
+    margin-bottom: -12px;
+  }
+}
+
 .pd__back:hover {
   color: var(--dot-accent);
 }

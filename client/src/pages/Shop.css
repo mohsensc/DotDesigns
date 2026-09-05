@@ -132,6 +132,20 @@
   transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
+/* Touch. 9px of padding around .8rem type is a 39px pill — a cursor hits it,
+   a thumb clips its neighbour. Grow the box, leave the look alone. The back
+   link takes its height out of its own margin so nothing below it moves. */
+@media (pointer: coarse) {
+  .shop__filter {
+    min-height: 44px;
+  }
+  .shop__back {
+    margin-top: -10px;
+    margin-bottom: -14px;
+    padding: 14px 0;
+  }
+}
+
 .shop__filter:hover {
   color: var(--dot-ink);
   border-color: color-mix(in srgb, var(--dot-accent) 55%, transparent);
