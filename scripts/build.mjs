@@ -73,8 +73,12 @@ if (isStudio) {
   // nothing should tell a crawler what hostname it lives on.
   writeFileSync(path.join(outDir, "robots.txt"), "User-agent: *\nDisallow: /\n");
   console.log("[build] wrote studio robots.txt (disallow all)");
+  // The studio build skips public/ (39MB of film), but the size drawing in
+  // the composer still needs the two scale figures. Copy just those.
+  cpSync(path.join(clientDir, "public", "scale"), path.join(outDir, "scale"), { recursive: true });
+  console.log("[build] copied scale figures for the studio");
 } else {
-  prerenderPublicSite();
+  await prerenderPublicSite();
 }
 
 // ---------------------------------------------------------------------------
@@ -85,9 +89,8 @@ if (isStudio) {
 // tags baked in at build time.
 // ---------------------------------------------------------------------------
 
-function prerenderPublicSite() {
-  const catalogPath = path.join(clientDir, "src", "lib", "catalog.demo.json");
-  const catalog = JSON.parse(readFileSync(catalogPath, "utf8"));
+async function prerenderPublicSite() {
+  const catalog = await loadCatalogForPrerender();
   const pieces = catalog.pieces.filter(p => p.status !== "draft").sort((a, b) => a.order - b.order);
 
   const template = readFileSync(path.join(outDir, "index.html"), "utf8");
@@ -153,6 +156,30 @@ function prerenderPublicSite() {
   console.log(`[build] prerendered ${pieces.length} piece page(s) + shop index + site root`);
 
   writeSitemapAndRobots(pieces);
+}
+
+/**
+ * The live catalog if the site can be reached, the demo pieces otherwise.
+ *
+ * Prerendering exists for crawlers, and crawlers read the deployed site — so
+ * the pieces to bake head tags for are the ones the deployed site is serving,
+ * not whatever was committed. A build must never fail over this, hence the
+ * timeout and the fallback.
+ */
+async function loadCatalogForPrerender() {
+  const url = `${SITE_ORIGIN}/api/catalog`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const body = await res.json();
+    const catalog = body?.catalog ?? body;
+    if (catalog?.version !== 1 || !Array.isArray(catalog.pieces)) throw new Error("not a catalog");
+    console.log(`[build] catalog: ${url} (${catalog.pieces.length} pieces)`);
+    return catalog;
+  } catch (err) {
+    console.log(`[build] catalog: shared/catalog.demo.json (${url} failed: ${err.message})`);
+    return JSON.parse(readFileSync(path.join(repoRoot, "shared", "catalog.demo.json"), "utf8"));
+  }
 }
 
 /** `client/public/og/<slug>.jpg` if it exists, else the default preview. */

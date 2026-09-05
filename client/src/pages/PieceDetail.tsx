@@ -23,15 +23,16 @@ type BuyState = "idle" | "sending" | "failed";
 export default function PieceDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [mediaSrcs, setMediaSrcs] = useState<Record<string, string>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [stock, setStock] = useState<StockEntry | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
-    loadCatalog().then(c => {
-      if (!cancelled) setCatalog(c);
-    });
+    loadCatalog()
+      .then(c => {
+        if (!cancelled) setCatalog(c);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -62,16 +63,6 @@ export default function PieceDetail() {
   useEffect(() => {
     if (!piece) return;
     setActiveId(orderedMedia[0]?.id ?? null);
-    setMediaSrcs({});
-    let cancelled = false;
-    orderedMedia.forEach(m => {
-      resolveMedia(m).then(url => {
-        if (!cancelled) setMediaSrcs(prev => ({ ...prev, [m.id]: url }));
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
   }, [piece, orderedMedia]);
 
   // Enquiry form state. Prefilled once per piece, not on every render.
@@ -170,7 +161,7 @@ export default function PieceDetail() {
   }
 
   const active = orderedMedia.find(m => m.id === activeId) ?? orderedMedia[0];
-  const activeSrc = active ? mediaSrcs[active.id] : "";
+  const activeSrc = active ? resolveMedia(active) : "";
   const size = formatSize(piece);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -232,11 +223,11 @@ export default function PieceDetail() {
                   aria-label={altOf(m, piece)}
                   aria-current={m.id === activeId}
                 >
-                  {mediaSrcs[m.id] ? (
+                  {resolveMedia(m) ? (
                     m.kind === "video" ? (
-                      <video className="piece-detail__thumb-media" src={mediaSrcs[m.id]} muted />
+                      <video className="piece-detail__thumb-media" src={resolveMedia(m)} muted />
                     ) : (
-                      <img className="piece-detail__thumb-media" src={mediaSrcs[m.id]} alt="" loading="lazy" />
+                      <img className="piece-detail__thumb-media" src={resolveMedia(m)} alt="" loading="lazy" />
                     )
                   ) : (
                     <span className="piece-detail__thumb-placeholder" aria-hidden="true" />
