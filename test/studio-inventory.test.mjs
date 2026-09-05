@@ -22,7 +22,7 @@ test.after(() => redis.server.close());
 const PASSWORD = "correct-horse";
 
 function validCookie(password = PASSWORD) {
-  return { [session.STUDIO_COOKIE_NAME]: session.expectedStudioToken(password) };
+  return { [session.STUDIO_COOKIE_NAME]: session.issueStudioToken(password) };
 }
 
 async function run(opts) {
@@ -88,7 +88,7 @@ test("with PASSWORD unset, even a cookie that would otherwise be valid authentic
   // Build the cookie as if PASSWORD were set to this value, then unset it —
   // this is the exact shape of cookie a real session would carry if the env
   // var vanished or was never configured.
-  const wouldBeToken = session.expectedStudioToken("whatever-it-was");
+  const wouldBeToken = session.issueStudioToken("whatever-it-was");
   delete process.env.PASSWORD;
   const slug = "no-password-configured";
   const res = await run({
