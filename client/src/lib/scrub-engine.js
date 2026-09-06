@@ -627,7 +627,12 @@ function mountScrollWorld(container, config) {
 
   function read() {
     if (destroyed) return;
-    const y = window.scrollY || window.pageYOffset;
+    // iOS Safari reports scrollY past both ends while the page rubber-bands, and
+    // `overscroll-behavior` doesn't stop it. Every opacity below is distance-from-
+    // segment over the crossfade width, so an unclamped y fades the whole film out
+    // — a 66px pull at the top (mobile crossfade 0.1) is enough to leave a blank
+    // screen. Clamp to the track the layout actually built.
+    const y = clamp(window.scrollY || window.pageYOffset, 0, totalW * vh);
     const fade = CROSSFADE * vh;
     let ci = 0;
     for (let i = 0; i < NSEG; i++) if (y >= SEGMENTS[i].start) ci = i;
@@ -806,7 +811,11 @@ function mountScrollWorld(container, config) {
   // Never fight a finger that's still down: the magnet is disarmed for the whole
   // gesture and only re-armed on lift, where the momentum tail then keeps pushing
   // the timer out until the flick has genuinely finished.
-  on(window, 'touchstart', () => { touching = true; clearTimeout(settleTimer); }, { passive: true });
+  // clearTimeout only kills a magnet that hasn't fired yet. One already in flight
+  // keeps calling scrollTo every frame, which on a phone is the page dragging
+  // itself out from under a finger that's just been put down — so drop the tween
+  // token too and let the step loop retire itself.
+  on(window, 'touchstart', () => { touching = true; tween = null; clearTimeout(settleTimer); }, { passive: true });
   on(window, 'touchend', () => { touching = false; armMagnet(); }, { passive: true });
   on(window, 'touchcancel', () => { touching = false; armMagnet(); }, { passive: true });
   // Mobile browsers fire `resize` every time the URL bar slides in/out. Re-running
@@ -1046,8 +1055,10 @@ function injectCSS() {
       overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;
       scroll-snap-type:x proximity;scrollbar-width:none;}
     .sw-nav::-webkit-scrollbar{width:0;height:0;display:none;}
-    .sw-nav__item{flex:0 0 auto;scroll-snap-align:center;padding:8px 13px;font-size:.78rem;}
-    .sw-topcta{font-size:.82rem;padding:9px 16px;}
+    /* 44px minimum on the pills: the padding is set by the type, which lands them
+       at 34-37px — a cursor hits that, a thumb in a swipeable row does not. */
+    .sw-nav__item{flex:0 0 auto;scroll-snap-align:center;padding:8px 13px;font-size:.78rem;min-height:44px;}
+    .sw-topcta{font-size:.82rem;padding:9px 16px;display:inline-flex;align-items:center;min-height:44px;}
     .sw-copylayer::before{width:100%;height:60%;top:auto;bottom:0;background:linear-gradient(0deg,var(--sw-bg) 8%,color-mix(in srgb,var(--sw-bg) 70%,transparent) 46%,transparent 100%);}
     /* Anchor copy to the bottom, clear of the home indicator / collapsing URL bar.
        dvh + env() are progressive: browsers that lack them keep the vh fallback line. */

@@ -222,6 +222,17 @@ html.dot-world body::-webkit-scrollbar {
   }
 }
 
+/* Touch. The pill's padding is tuned to match .sw-topcta's height, which is a
+   41px cursor target; a thumb wants 44. Same floor the engine puts on its own
+   pills, applied on every touch width — an iPad is coarse at 810 too. */
+@media (pointer: coarse) {
+  .dot-shop {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
 /* Loading gate ------------------------------------------------------------
    Covers everything (engine chrome is z-index 50, the logo lockup 200) until
    every clip is decodable. The film is ~40 MB, so this is a real wait on a cold
