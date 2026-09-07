@@ -53,13 +53,6 @@ export function readCookie(req: VercelRequest, name: string): string | undefined
   return undefined;
 }
 
-/**
- * True when the request carries a valid, unexpired studio session cookie.
- * False whenever PASSWORD isn't set — fails closed, same as studio-auth.
- */
-export function isUnlockedRequest(req: VercelRequest): boolean {
-  const password = process.env.PASSWORD;
-  if (!password) return false;
-  const cookie = readCookie(req, STUDIO_COOKIE_NAME);
-  return !!cookie && verifyStudioToken(cookie, password);
-}
+// "Is this request allowed in" lives in ./studio-lockdown.ts, not here: it
+// needs Redis, and this file is imported straight into tests that run without
+// one.
