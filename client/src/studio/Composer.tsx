@@ -313,7 +313,7 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
                     <button
                       type="button"
                       className="btn btn-small btn-block"
-                      disabled={cover === item.id || item.kind !== "image"}
+                      disabled={cover === item.id}
                       onClick={() => setCoverItemId(item.id)}
                     >
                       {cover === item.id ? "Cover" : "Make cover"}
