@@ -10,7 +10,7 @@ import {
   upsertPiece as upsertInCatalog,
 } from "./_lib/catalog-shape";
 import { parseAmount, removePiece as removeInventoryRow, upsertPiece as upsertInventoryRow } from "./_lib/inventory";
-import { isUnlockedRequest } from "./_lib/studio-session";
+import { requireUnlocked } from "./_lib/studio-lockdown";
 
 // The studio's only door onto the live catalog.
 //
@@ -68,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  if (!isUnlockedRequest(req)) {
+  if (!(await requireUnlocked(req))) {
     res.status(401).json({ error: "Not signed in." });
     return;
   }

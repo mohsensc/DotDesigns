@@ -12,7 +12,7 @@
 // clobbering whatever the other tab saved.
 // ---------------------------------------------------------------------------
 
-import { upload } from "@vercel/blob/client";
+import { put } from "@vercel/blob/client";
 import type { Catalog, MediaKind, MediaRef, Piece } from "./catalog";
 
 /** Any 401. The studio drops back to the lock screen when it sees this. */
@@ -131,14 +131,36 @@ function safeName(filename: string): string {
  * Uploads straight from the browser to Vercel Blob. The file never passes
  * through a function, so a phone video isn't a 60MB request body — the function
  * only signs off on the upload.
+ *
+ * @vercel/blob/client's own `upload()` does this handshake internally, but it
+ * throws one generic "Failed to retrieve the client token" for any non-200
+ * from handleUploadUrl and discards the response body — so a missing
+ * BLOB_READ_WRITE_TOKEN and an expired session look identical. Doing the
+ * handshake by hand keeps the server's actual error.
  */
 export async function uploadMedia(
   file: Blob,
   opts: { pieceId: string; filename: string; kind: MediaKind; onProgress?: (fraction: number) => void },
 ): Promise<MediaRef> {
-  const result = await upload(`pieces/${opts.pieceId}/${safeName(opts.filename)}`, file, {
+  const pathname = `pieces/${opts.pieceId}/${safeName(opts.filename)}`;
+  const tokenRes = await fetch("/api/studio-upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "blob.generate-client-token",
+      payload: { pathname, clientPayload: null, multipart: false },
+    }),
+  });
+  if (tokenRes.status === 401) throw new StudioAuthError();
+  if (!tokenRes.ok) {
+    const body = await readPayload(tokenRes);
+    throw new Error(body.error || "Couldn't start the upload.");
+  }
+  const { clientToken } = (await tokenRes.json()) as { clientToken: string };
+
+  const result = await put(pathname, file, {
     access: "public",
-    handleUploadUrl: "/api/studio-upload",
+    token: clientToken,
     contentType: file.type || undefined,
     onUploadProgress: opts.onProgress ? e => opts.onProgress!(e.percentage / 100) : undefined,
   });

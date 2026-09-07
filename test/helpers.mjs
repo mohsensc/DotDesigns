@@ -8,8 +8,7 @@
 import { execFileSync } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,7 +17,12 @@ export { startFakeRedis } from "./fake-redis.mjs";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const esbuild = path.join(repoRoot, "node_modules/.bin/esbuild");
 
-const work = mkdtempSync(path.join(tmpdir(), "dot-helpers-"));
+// Bundles live under node_modules so bare imports left external still resolve.
+// Bundling @vercel/blob all the way in breaks: its jose dependency does a
+// dynamic require that esbuild can't express in ESM output.
+const cacheDir = path.join(repoRoot, "node_modules/.cache");
+mkdirSync(cacheDir, { recursive: true });
+const work = mkdtempSync(path.join(cacheDir, "dot-tests-"));
 process.on("exit", () => rmSync(work, { recursive: true, force: true }));
 
 const bundleCache = new Map();
@@ -33,7 +37,7 @@ export function bundle(tsRelPath) {
   const outfile = path.join(work, `${tsRelPath.replace(/[\\/]/g, "_")}.mjs`);
   execFileSync(
     esbuild,
-    [path.join(repoRoot, tsRelPath), "--bundle", "--platform=node", "--format=esm", `--outfile=${outfile}`],
+    [path.join(repoRoot, tsRelPath), "--bundle", "--platform=node", "--format=esm", "--packages=external", `--outfile=${outfile}`],
     { stdio: "pipe" },
   );
   bundleCache.set(tsRelPath, outfile);

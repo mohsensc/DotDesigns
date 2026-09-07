@@ -6,6 +6,10 @@ import { loadInventory, type StockEntry } from "../lib/inventory";
 import { scaleNote } from "./ScaleFigure";
 import "./PieceCard.css";
 
+function reducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 export default function PieceCard({ piece, eager }: { piece: Piece; eager?: boolean }) {
   const cover = coverOf(piece);
   const src = cover ? resolveMedia(cover) : "";
@@ -34,7 +38,23 @@ export default function PieceCard({ piece, eager }: { piece: Piece; eager?: bool
   return (
     <Link to={`/shop/${piece.slug}`} className={`piece-card${sold ? " piece-card--sold" : ""}`}>
       <div className="piece-card__media">
-        {src ? (
+        {src && cover?.kind === "video" ? (
+          <video
+            className="piece-card__img"
+            src={src}
+            width={cover?.width}
+            height={cover?.height}
+            muted
+            playsInline
+            loop
+            // Only the above-the-fold cards play, and only when motion is
+            // welcome. The rest show their first frame: autoplay makes the
+            // browser fetch the whole clip whatever preload says.
+            autoPlay={eager && !reducedMotion()}
+            preload={eager ? "auto" : "metadata"}
+            aria-label={altOf(cover, piece)}
+          />
+        ) : src ? (
           <img
             className="piece-card__img"
             src={src}

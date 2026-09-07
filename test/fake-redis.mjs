@@ -27,6 +27,14 @@ export function startFakeRedis() {
       case "DEL":
         strings.delete(rest[0]);
         return 1;
+      case "INCR": {
+        const next = Number(strings.get(rest[0]) ?? "0") + 1;
+        strings.set(rest[0], String(next));
+        return next;
+      }
+      case "EXPIRE":
+        // TTLs aren't modelled; the call is accepted so the caller's shape is real.
+        return strings.has(rest[0]) ? 1 : 0;
       case "SADD": {
         const s = sets.get(rest[0]) ?? new Set();
         s.add(rest[1]);

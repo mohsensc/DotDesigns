@@ -7,7 +7,7 @@ import {
   removePiece,
   upsertPiece,
 } from "./_lib/inventory";
-import { isUnlockedRequest } from "./_lib/studio-session";
+import { requireUnlocked } from "./_lib/studio-lockdown";
 
 // The studio's inventory table talks to this.
 //
@@ -57,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  if (!isUnlockedRequest(req)) {
+  if (!(await requireUnlocked(req))) {
     res.status(401).json({ error: "Not signed in." });
     return;
   }
