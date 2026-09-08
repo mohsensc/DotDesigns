@@ -19,8 +19,9 @@ import AmbientAudio from "../components/AmbientAudio.tsx";
 // beat, the centrepiece figure, is preserved as a commented block inside
 // `sections`, in the order it slots into the film, ready for its clip.
 //
-// brandLine feeds the logo overlay's accessible tagline. deckCta holds the one
-// call to action; the engine renders only its label/href, so those are
+// brandLine is the accessible name of the logo lockup, which is this page's h1.
+// deckCta holds the one call to action; the engine renders only its label/href,
+// so those are
 // referenced into CONFIG while contactLines are kept here as the source of
 // truth for the closing contact block.
 // ---------------------------------------------------------------------------
@@ -29,7 +30,14 @@ const brandLine = "Architectural sculptural wall art, handcrafted in Toronto.";
 
 const deckCta = {
   label: "Book a complimentary consultation",
-  href: "mailto:hello@dotdesigns.ca",
+  // The request form, not a raw address link. That link does nothing visible on
+  // a phone with nothing set up to handle it, or on a desktop reading messages
+  // in a browser, so the loudest button on the site failed silently for those
+  // visitors and the studio never heard about it. /shop/request posts to the
+  // server and tells the visitor it worked, and it already asks for the brief,
+  // the space and the timeline a consultation needs. The address still reads in
+  // the footer, where a dead link is obvious rather than silent.
+  href: "/shop/request",
   contactLines: ["www.dotdesigns.ca", "hello@dotdesigns.ca", "@dotdesigns.ca"],
 };
 
@@ -231,9 +239,9 @@ const DECK: ScrollWorldConfig = {
       title: "Let's Create Something Original",
       body: "Gold leaf, plaster, and patient hands, brought together into a piece that belongs only to your space.",
       // The closing section carries the deck CTA plus the contact address.
-      // The consultation stays the primary ask; the secondary now goes to the
-      // shop rather than repeating the primary's mailto with a different label.
-      // The address itself still reads under the button in the deck.
+      // The consultation stays the primary ask; the secondary goes to the shop.
+      // Both are same-origin, so the engine turns them into route changes rather
+      // than reloading the whole film.
       cta: {
         primary: { label: deckCta.label, href: deckCta.href },
         secondary: { label: "Browse the pieces", href: "/shop" },
@@ -331,30 +339,44 @@ export default function World() {
 
   return (
     <>
-      {/* Real logo lockup, used untouched, overlaid above every engine layer
-          (engine topbar is z-index 50). The supplied asset is a full lockup —
-          mark + "Designs" + descriptor — so it IS the brand chrome; the engine's
-          placeholder brand is reserved-but-hidden in World.css so the nav clears
-          it. See the brandLine note below re: why no second tagline is drawn. */}
-      <div className="dot-brand" aria-label={`DOT Designs: ${brandLine}`}>
-        <img className="dot-brand__logo" src={dotGold} alt="DOT Designs" />
-      </div>
-      {/* Portalled into the engine's own topbar rather than floated over it, so
-          it's a real flex child and lines up with the nav and the CTA by itself.
-          Floating it meant hand-matching their vertical offset and reserving
-          width in the topbar's padding, which drifted the moment either moved. */}
+      {/* Both are portalled into the engine's own topbar rather than floated
+          over it. For the Shop pill that makes it a real flex child, lining up
+          with the nav and the CTA by itself instead of by hand-matched offsets.
+          For the lockup it is about the accessibility tree: the topbar is the
+          page's banner, and the brand belongs inside it. It stays fixed-position
+          either way, so neither reparenting moves anything on screen. */}
       {topbar &&
         createPortal(
-          <Link to="/shop" className="dot-shop">
-            Shop
-          </Link>,
+          <>
+            <Link to="/shop" className="dot-shop">
+              Shop
+            </Link>
+            {/* Real logo lockup, used untouched, above every engine layer. The
+                supplied asset is a full lockup — mark + "Designs" + descriptor —
+                so it IS the brand chrome; the engine's placeholder brand is
+                reserved-but-hidden in World.css so the nav clears it.
+
+                It is also the page's h1: the film's own headings are all h2 and
+                this route has no other candidate, so without it the front door
+                has nothing to orient from. The sentence rides on the img's alt
+                rather than as drawn text — an aria-label on the old plain div
+                was ignored outright, which is how the one line saying what the
+                studio does reached nobody. */}
+            <h1 className="dot-brand">
+              <img
+                className="dot-brand__logo"
+                src={dotGold}
+                alt={`DOT Designs: ${brandLine}`}
+              />
+            </h1>
+          </>,
           topbar,
         )}
-      {/* role="main" rather than a <main> tag: the engine owns this element and
-          expects a plain div (containerRef is typed HTMLDivElement), but it's
-          still the page's one real landmark — the nav, copy, and CTAs it
-          injects are the whole point of the route. */}
-      <div ref={containerRef} className="dot-world" role="main" />
+      {/* No landmark role here: the engine puts role="banner" on the topbar it
+          builds and role="main" on the copy layer that carries the film's text
+          and CTAs. Those are siblings inside this element, so marking the
+          wrapper as main too would nest the banner inside main. */}
+      <div ref={containerRef} className="dot-world" />
       <AmbientAudio />
 
       {/* Loading gate. The whole film is fetched before anything is shown, so the
@@ -364,10 +386,17 @@ export default function World() {
         <div className="dot-loader" role="status" aria-live="polite">
           <img className="dot-loader__logo" src={dotGold} alt="DOT Designs" />
           <p className="dot-loader__line">Preparing the gallery</p>
-          <div className="dot-loader__bar">
+          {/* The bar and the percentage tick several times a second. Inside a
+              polite live region that queues "Preparing the gallery 12% … 34% …"
+              as the first thing a screen reader meets on the site, and a polite
+              queue won't interrupt itself. Keep them visual; the line above
+              announces once. */}
+          <div className="dot-loader__bar" aria-hidden="true">
             <span style={{ transform: `scaleX(${progress})` }} />
           </div>
-          <p className="dot-loader__pct">{Math.round(progress * 100)}%</p>
+          <p className="dot-loader__pct" aria-hidden="true">
+            {Math.round(progress * 100)}%
+          </p>
         </div>
       )}
     </>
