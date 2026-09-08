@@ -9,6 +9,8 @@ type InventoryPayload = {
   pieces: Record<string, { price: number | null; quantity: number; soldOut: boolean }>;
 };
 
+type ErrorPayload = { error: string };
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -16,10 +18,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Not configured yet — the shop still has to render, just with no stock
-  // data. Empty map, not a 500: the catalog's own status field carries on.
+  // An unreadable ledger is not an empty one. Answering 200 {"pieces":{}} here
+  // made the two look identical, so a store with no Redis credentials rendered
+  // as a shop where every piece happens to have no stock row — priced, listed,
+  // and quietly unbuyable. 503 lets the client say which it is.
   if (!isConfigured()) {
-    res.status(200).json({ pieces: {} } satisfies InventoryPayload);
+    res.status(503).json({ error: "The stock ledger isn't available right now." } satisfies ErrorPayload);
     return;
   }
 
@@ -32,8 +36,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Cache-Control", "s-maxage=30, stale-while-revalidate=60");
     res.status(200).json({ pieces } satisfies InventoryPayload);
   } catch {
-    // A storage hiccup shouldn't take the shop down. Empty map, same as
-    // unconfigured — the client falls back to the catalog's own status.
-    res.status(200).json({ pieces: {} } satisfies InventoryPayload);
+    // Same as unconfigured: the shop still renders, but off the catalog alone
+    // and knowing it. The client must never read this as "everything is sold".
+    res.status(503).json({ error: "The stock ledger isn't available right now." } satisfies ErrorPayload);
   }
 }

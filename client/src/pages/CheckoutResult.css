@@ -93,3 +93,8 @@
   color: var(--dot-accent);
   border-color: var(--dot-accent);
 }
+
+/* A Stripe id has no break points; let it wrap on a phone. */
+.checkout__ref {
+  word-break: break-all;
+}

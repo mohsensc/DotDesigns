@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useDocumentTitle } from "../lib/use-document-title";
 import { CONTACT_EMAIL } from "../lib/inquiry";
 import SiteChrome from "../components/SiteChrome.tsx";
@@ -10,12 +10,20 @@ import "./CheckoutResult.css";
 // the payment actually succeeded, and the webhook is what moves stock — so
 // re-confirming here would add a spinner and a failure mode to a page whose only
 // job is to say "that worked". The receipt is Stripe's to send.
+//
+// The session id in success_url is the one thing worth printing: if the receipt
+// lands in spam it's what both sides can quote. Only ids that look like Stripe's
+// are shown — anyone can put anything in a query string, and an arbitrary string
+// printed as an order reference is a page that lies on request.
 
 type Props = { outcome: "success" | "cancelled" };
 
 export default function CheckoutResult({ outcome }: Props) {
   const ok = outcome === "success";
   useDocumentTitle(ok ? "Thank you" : "Checkout cancelled");
+  const [params] = useSearchParams();
+  const sessionId = params.get("session_id") ?? "";
+  const reference = /^cs_[A-Za-z0-9_]{10,80}$/.test(sessionId) ? sessionId : null;
 
   return (
     <SiteChrome className="checkout">
@@ -29,6 +37,11 @@ export default function CheckoutResult({ outcome }: Props) {
               Your receipt is on its way by email. Hajar packs and ships each piece herself, so
               she'll be in touch shortly to arrange delivery and give you a timeline.
             </p>
+            {reference && (
+              <p className="checkout__note">
+                Reference: <span className="checkout__ref">{reference}</span>
+              </p>
+            )}
             <p className="checkout__note">
               Anything you need in the meantime, reply to that email or write to{" "}
               <a href={`mailto:${CONTACT_EMAIL}`} className="checkout__link">

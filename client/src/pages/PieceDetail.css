@@ -368,6 +368,7 @@
 }
 
 .pd__form-title {
+  text-wrap: balance;
   margin: 0;
   font-family: var(--dot-font-display);
   font-weight: 400;
@@ -423,6 +424,9 @@
   border-color: var(--dot-accent);
 }
 
+/* Filled, like Buy now. This is the page's real submit; leaving it ghost put it
+   at the same weight as the scroll cue above it and below the nav's gold pill,
+   so nothing on the page read as the action. */
 .pd__enquire {
   align-self: flex-start;
   appearance: none;
@@ -432,15 +436,14 @@
   font-weight: 600;
   padding: 13px 24px;
   border-radius: 999px;
-  color: var(--dot-ink);
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--dot-accent) 45%, transparent);
-  transition: color 0.2s ease, border-color 0.2s ease;
+  color: var(--dot-bg);
+  background: var(--dot-accent);
+  border: 1px solid var(--dot-accent);
+  transition: filter 0.2s ease;
 }
 
 .pd__enquire:hover {
-  color: var(--dot-accent);
-  border-color: var(--dot-accent);
+  filter: brightness(1.08);
 }
 
 .pd__enquire[disabled] {
@@ -449,7 +452,8 @@
 }
 
 .pd__sent,
-.pd__error {
+.pd__error,
+.pd__note {
   margin: 0;
   font-size: 0.88rem;
   line-height: 1.6;
@@ -457,8 +461,28 @@
   color: var(--dot-ink-soft);
 }
 
-.pd__error a {
+/* Errors used to share --dot-ink-soft with every muted caption on the page, so
+   colour was the only thing marking them and it wasn't even a different one.
+   The tint carries 8.4:1 on the ground; the bold "Error:" is what a visitor who
+   can't see the tint has to go on. */
+.pd__error {
+  color: color-mix(in srgb, var(--dot-accent) 78%, #ffffff);
+}
+
+.pd__error-mark {
+  font-weight: 600;
+}
+
+.pd__error a,
+.pd__note a {
   color: var(--dot-accent);
+}
+
+/* The stock ledger is unreadable, so the price on screen is the catalog's and
+   nothing can be bought. Sits under the action bar rather than replacing it. */
+.pd__note {
+  margin-top: 10px;
+  color: var(--dot-ink);
 }
 
 .pd__honeypot {
@@ -481,6 +505,7 @@
 }
 
 .pd__empty-title {
+  text-wrap: balance;
   margin: 0;
   font-family: var(--dot-font-display);
   font-weight: 400;
@@ -495,6 +520,20 @@
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--dot-ink-soft);
+}
+
+/* A sentence, not a status word — so it doesn't take .pd__status's small-caps. */
+.pd__failed-note {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 0.95rem;
+  font-weight: 300;
+  line-height: 1.7;
+  color: var(--dot-ink);
+}
+
+.pd__failed-note a {
+  color: var(--dot-accent);
 }
 
 /* Phone: the bar leaves the flow and pins itself. --------------------------- */
