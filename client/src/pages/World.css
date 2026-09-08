@@ -61,7 +61,10 @@ html.dot-world body::-webkit-scrollbar {
    white (the studio, the worktable). A near-transparent pill leaves the labels
    unreadable on the bright ones, so the pill carries its own dark ground. */
 .sw-root .sw-nav {
-  background: color-mix(in srgb, var(--dot-bg) 58%, transparent);
+  /* 78%, not 58%: at 58% the labels measured 3.9:1 over the Materials scene,
+     which is the brightest frame in the film. The pill already blurs what's
+     behind it, so a denser ground reads as the same material. */
+  background: color-mix(in srgb, var(--dot-bg) 78%, transparent);
   border-color: color-mix(in srgb, var(--sw-accent) 30%, transparent);
 }
 .sw-root .sw-nav__item {
@@ -116,6 +119,10 @@ html.dot-world body::-webkit-scrollbar {
 
 .sw-root .sw-copy__title {
   text-shadow: 0 3px 22px color-mix(in srgb, #000 88%, transparent);
+  /* The largest type on the site, and the only headline that was left to break
+     where it liked — "Let's Create Something Original" dropped a one-word last
+     line at 1440. */
+  text-wrap: balance;
 }
 
 .sw-root .sw-copy__tags li {
@@ -153,6 +160,23 @@ html.dot-world body::-webkit-scrollbar {
   left: clamp(18px, 5vw, 64px);
   z-index: 200; /* above the engine topbar (z-index 50) */
   pointer-events: none;
+  margin: 0; /* it's an h1 — drop the UA block margins */
+}
+/* The lockup carries its descriptor baked in, and it has to survive scenes that
+   swing from near-black to almost white. It can't be recoloured or filtered, so
+   the ground moves instead: the same soft scrim the copy block gets, sized to
+   fade out well before the logo's own edge so it never reads as a plate. */
+.dot-brand::before {
+  content: "";
+  position: absolute;
+  inset: -85% -60%;
+  z-index: -1;
+  background: radial-gradient(
+    62% 62% at 42% 50%,
+    color-mix(in srgb, var(--dot-bg) 84%, transparent) 0%,
+    color-mix(in srgb, var(--dot-bg) 52%, transparent) 48%,
+    transparent 76%
+  );
 }
 .dot-brand__logo {
   display: block;
@@ -194,7 +218,9 @@ html.dot-world body::-webkit-scrollbar {
   padding: 9px 20px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--sw-accent) 40%, transparent);
-  background: color-mix(in srgb, var(--sw-bg) 55%, transparent);
+  /* Same reason as the nav pill above: 55% dropped this to 3.9:1 over the
+     Materials scene. */
+  background: color-mix(in srgb, var(--sw-bg) 78%, transparent);
   backdrop-filter: blur(10px);
   transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
@@ -348,13 +374,20 @@ html.dot-world body::-webkit-scrollbar {
     height: 58px;
   }
   /* Bottom-right is where the copy block now lives, so the toggle drops into the
-     strip below it, beside the scroll hint. Smaller, since it's chrome and the
-     film is the point. */
+     strip below it, beside the scroll hint. */
+  html.dot-world .dot-sound {
+    right: clamp(14px, 4vw, 24px);
+    bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+/* The toggle is chrome and the film is the point, so it shrinks below 860 —
+   but only for a cursor. A thumb keeps the house 44px floor AmbientAudio.css
+   already sizes it at, which is what a narrow touch screen gets. */
+@media (max-width: 860px) and (pointer: fine) {
   html.dot-world .dot-sound {
     width: 38px;
     height: 38px;
-    right: clamp(14px, 4vw, 24px);
-    bottom: calc(12px + env(safe-area-inset-bottom));
   }
 }
 

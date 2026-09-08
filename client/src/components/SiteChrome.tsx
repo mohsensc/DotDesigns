@@ -17,14 +17,20 @@ import "./SiteChrome.css";
 // Contact lines are printed, not linked, apart from the email — same as the
 // film's closing scene. www.dotdesigns.ca and the handle are the studio's own
 // wording; nothing here invents a URL for them.
+//
+// The topbar's consultation CTA points at the request form, not a mailto —
+// mailto does nothing on webmail with no client registered, and the form is
+// the one intake path that reports success or failure back to the visitor.
+// The footer keeps the printed mailto: it's the studio's listed address, and
+// a dead handler there is obvious rather than silently swallowing a lead.
 // ---------------------------------------------------------------------------
 
-const CONSULT_HREF = `mailto:${CONTACT_EMAIL}`;
 const CONSULT_LABEL = "Book a consultation";
 
 export function SiteTopbar() {
   const { pathname } = useLocation();
   const onShop = pathname.startsWith("/shop");
+  const onPiece = onShop && pathname !== "/shop" && pathname !== "/shop/request";
   // Neither is current on the 404 or the checkout pages — don't claim one is.
   const onGallery = pathname === "/";
 
@@ -61,10 +67,15 @@ export function SiteTopbar() {
 
       {/* Short label on phones, where the full sentence would push the row past
           the screen. The accessible name stays the full one either way. */}
-      <a className="chrome-top__cta" href={CONSULT_HREF} aria-label={CONSULT_LABEL}>
+      <Link
+        // A piece page has its own action; the header pill steps back there.
+        className={`chrome-top__cta${onPiece ? " chrome-top__cta--quiet" : ""}`}
+        to="/shop/request"
+        aria-label={CONSULT_LABEL}
+      >
         <span className="chrome-top__cta-long">{CONSULT_LABEL}</span>
         <span className="chrome-top__cta-short">Consultation</span>
-      </a>
+      </Link>
     </header>
   );
 }
@@ -76,7 +87,7 @@ export function SiteFooter() {
       <ul className="chrome-foot__lines">
         <li>www.dotdesigns.ca</li>
         <li>
-          <a href={CONSULT_HREF}>{CONTACT_EMAIL}</a>
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
         </li>
         <li>@dotdesigns.ca</li>
       </ul>

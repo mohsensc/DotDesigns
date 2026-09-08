@@ -24,8 +24,13 @@ type BuyState = "idle" | "sending" | "failed";
 export default function PieceDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  // Bumped by Retry. loadCatalog() holds no cache, so re-running the effect is
+  // the whole retry — there's nothing to invalidate first.
+  const [attempt, setAttempt] = useState(0);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [stock, setStock] = useState<StockEntry | undefined>(undefined);
+  const [ledgerDown, setLedgerDown] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
   // Raised while a dot or thumb is animating the track. Without it the
   // observer below reports every slide the smooth scroll flies past, and the
@@ -34,20 +39,28 @@ export default function PieceDetail() {
 
   useEffect(() => {
     let cancelled = false;
+    setCatalogFailed(false);
     loadCatalog()
       .then(c => {
         if (!cancelled) setCatalog(c);
       })
-      .catch(() => {});
+      .catch(() => {
+        // A 500 or a Redis blip lands here too, not just a dead network. Left
+        // unhandled the page sat on the word "Loading…" forever and looked like
+        // it was still working.
+        if (!cancelled) setCatalogFailed(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
   useEffect(() => {
     let cancelled = false;
     loadInventory().then(inventory => {
-      if (!cancelled) setStock(inventory[slug ?? ""]);
+      if (cancelled) return;
+      setStock(inventory.pieces[slug ?? ""]);
+      setLedgerDown(inventory.unavailable);
     });
     return () => {
       cancelled = true;
@@ -132,6 +145,10 @@ export default function PieceDetail() {
   // The sheet is the live stock number and wins over the catalog's own status
   // whenever there's an entry for this slug — same rule as the shop grid.
   const soldOut = stock ? stock.soldOut : piece?.status === "sold";
+  // Reserved and sold ask for different things: one wants telling when it frees
+  // up, the other wants a comparable commission. Sold wins if the ledger says
+  // the piece is gone, whatever the catalog still calls it.
+  const reserved = !soldOut && piece?.status === "reserved";
   // What to show is not the same question as what we can charge. The sheet's
   // price may be present-but-unparseable (null = "not for sale", per
   // inventory.ts) — that must block the button even though the catalog still
@@ -160,16 +177,17 @@ export default function PieceDetail() {
 
   useEffect(() => {
     if (!piece || messageTouched) return;
-    const unavailable = soldOut || piece.status === "reserved";
     setMessage(
-      unavailable
+      soldOut
         ? `Hi, I'm interested in something similar to "${piece.title}". Could you tell me about a comparable commission?`
-        : `Hi, I'd like to ask about "${piece.title}".`,
+        : reserved
+          ? `Hi, could you let me know if "${piece.title}" frees up?`
+          : `Hi, I'd like to ask about "${piece.title}".`,
     );
     // This re-runs once the inventory fetch resolves and soldOut flips from
     // its initial guess — as long as the visitor hasn't typed anything yet,
     // the copy corrects itself instead of drifting from the heading below.
-  }, [piece, soldOut, messageTouched]);
+  }, [piece, soldOut, reserved, messageTouched]);
 
   async function handleBuy() {
     if (!piece || !canBuy) return;
@@ -199,6 +217,25 @@ export default function PieceDetail() {
       <SiteChrome className="pd pd--empty">
         <p className="pd__eyebrow">Not here</p>
         <h1 className="pd__empty-title">This piece isn't in the shop.</h1>
+        <Link to="/shop" className="pd__back">
+          &larr;&nbsp; Back to the shop
+        </Link>
+      </SiteChrome>
+    );
+  }
+
+  if (!piece && catalogFailed) {
+    return (
+      <SiteChrome className="pd pd--empty">
+        <p className="pd__eyebrow">Not loaded</p>
+        <h1 className="pd__empty-title">Couldn't load the catalog.</h1>
+        <p className="pd__failed-note">
+          Something went wrong at our end. Try again, or write to{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and we'll send you the details.
+        </p>
+        <button type="button" className="pd__enquire" onClick={() => setAttempt(a => a + 1)}>
+          Try again
+        </button>
         <Link to="/shop" className="pd__back">
           &larr;&nbsp; Back to the shop
         </Link>
@@ -372,11 +409,21 @@ export default function PieceDetail() {
               </button>
             ) : (
               <a className="pd__buy pd__buy--quiet" href="#piece-enquire">
-                {soldOut || piece.status === "reserved" ? "Ask about a similar piece" : "Enquire"}
+                {soldOut ? "Ask about a similar piece" : reserved ? "Ask to be notified" : "Ask to buy"}
               </a>
             )}
           </div>
-          {buyState === "failed" && <p className="pd__error">{buyError}</p>}
+          {buyState === "failed" && (
+            <p className="pd__error" role="alert">
+              <strong className="pd__error-mark">Error:</strong> {buyError}
+            </p>
+          )}
+          {ledgerDown && !soldOut && !reserved && (
+            <p className="pd__note">
+              Checkout is unavailable right now, so the price above is the catalog's.{" "}
+              <a href="#piece-enquire">Ask to buy this piece</a> and we'll take it from there.
+            </p>
+          )}
 
           <p className="pd__description">{piece.description}</p>
 
@@ -407,13 +454,17 @@ export default function PieceDetail() {
 
           <div className="pd__action" id="piece-enquire">
             {sendState === "sent" ? (
-              <p className="pd__sent">Sent. We'll get back to you at {email}.</p>
+              <p className="pd__sent" role="status">
+                Sent. We'll get back to you at {email}.
+              </p>
             ) : (
               <form className="pd__form" onSubmit={handleSubmit} noValidate>
                 <h2 className="pd__form-title">
-                  {soldOut || piece.status === "reserved"
+                  {soldOut
                     ? "Ask about a similar piece"
-                    : "Enquire about this piece"}
+                    : reserved
+                      ? "Ask to be notified"
+                      : "Enquire about this piece"}
                 </h2>
 
                 {/* Honeypot: real visitors never see or fill this in. */}
@@ -453,8 +504,9 @@ export default function PieceDetail() {
                 </label>
 
                 {sendState === "failed" && (
-                  <p className="pd__error">
-                    {sendError} Or <a href={`mailto:${CONTACT_EMAIL}`}>email {CONTACT_EMAIL} directly</a>.
+                  <p className="pd__error" role="alert">
+                    <strong className="pd__error-mark">Error:</strong> {sendError} Or{" "}
+                    <a href={`mailto:${CONTACT_EMAIL}`}>email {CONTACT_EMAIL} directly</a>.
                   </p>
                 )}
 

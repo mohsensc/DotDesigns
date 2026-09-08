@@ -104,7 +104,10 @@ export default function LockScreen({ onUnlocked, sessionEnded }: Props) {
       <div className="lock-screen">
         <div className="lock-card">
           <h1>Dot Designs Studio</h1>
-          <p className="lock-hint">Ask Mohsen to unlock the website.</p>
+          <p className="lock-hint">
+            Too many wrong tries, so this tool locked itself. Nothing you posted has changed.
+            Ask Mohsen to unlock the website.
+          </p>
           {showUnlock ? (
             <form onSubmit={handleUnlock}>
               <label className="lock-label" htmlFor="studio-unlock">
@@ -128,7 +131,6 @@ export default function LockScreen({ onUnlocked, sessionEnded }: Props) {
             <button
               type="button"
               className="lock-plain-btn"
-              style={{ background: "none", border: 0, padding: 0, font: "inherit", fontSize: 14, textDecoration: "underline", cursor: "pointer" }}
               onClick={() => setShowUnlock(true)}
             >
               I'm Mohsen

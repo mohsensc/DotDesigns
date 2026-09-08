@@ -41,7 +41,7 @@
   background: linear-gradient(
     0deg,
     var(--dot-bg) 2%,
-    color-mix(in srgb, var(--dot-bg) 62%, transparent) 44%,
+    color-mix(in srgb, var(--dot-bg) 74%, transparent) 44%,
     color-mix(in srgb, var(--dot-bg) 24%, transparent) 100%
   );
 }
@@ -63,6 +63,13 @@
   letter-spacing: 0.32em;
   text-transform: uppercase;
   color: var(--dot-accent);
+}
+
+/* Over the photograph the gold drops to about 1.8:1 against the bright part of
+   materials.webp at 390. Ink measures 5.1:1 in the same box, so the label keeps
+   the gold only where it sits on the flat ground (the CTA band below). */
+.shop__band-copy .shop__eyebrow {
+  color: var(--dot-ink);
 }
 
 .shop__title {
@@ -197,6 +204,57 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--dot-ink-soft);
+}
+
+/* The catalog didn't load. Says so, offers a retry and a person to write to,
+   rather than sitting on "Loading…" forever. */
+
+.shop__failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: clamp(48px, 10vw, 96px) var(--dot-gutter);
+  max-width: 560px;
+}
+
+.shop__failed-title {
+  margin: 0;
+  font-family: var(--dot-font-display);
+  font-weight: 400;
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  line-height: 1.15;
+  color: var(--dot-ink);
+}
+
+.shop__failed-note {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 300;
+  line-height: 1.7;
+  color: var(--dot-ink);
+}
+
+.shop__failed-link {
+  color: var(--dot-accent);
+}
+
+.shop__retry {
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 13px 24px;
+  border-radius: 999px;
+  color: var(--dot-bg);
+  background: var(--dot-accent);
+  border: 1px solid var(--dot-accent);
+  transition: filter 0.2s ease;
+}
+
+.shop__retry:hover {
+  filter: brightness(1.08);
 }
 
 /* Special request band ---------------------------------------------------- */

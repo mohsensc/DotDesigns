@@ -140,7 +140,13 @@ function safeName(filename: string): string {
  */
 export async function uploadMedia(
   file: Blob,
-  opts: { pieceId: string; filename: string; kind: MediaKind; onProgress?: (fraction: number) => void },
+  opts: {
+    pieceId: string;
+    filename: string;
+    kind: MediaKind;
+    onProgress?: (fraction: number) => void;
+    signal?: AbortSignal;
+  },
 ): Promise<MediaRef> {
   const pathname = `pieces/${opts.pieceId}/${safeName(opts.filename)}`;
   const tokenRes = await fetch("/api/studio-upload", {
@@ -162,6 +168,7 @@ export async function uploadMedia(
     access: "public",
     token: clientToken,
     contentType: file.type || undefined,
+    abortSignal: opts.signal,
     onUploadProgress: opts.onProgress ? e => opts.onProgress!(e.percentage / 100) : undefined,
   });
   return {

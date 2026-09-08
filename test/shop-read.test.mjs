@@ -3,6 +3,12 @@
 // soft — the worst outcome here isn't a wrong number, it's the whole shop
 // looking sold out because a read hiccuped.
 //
+// Soft, but not silent. The server used to answer 200 {"pieces":{}} for an
+// unreadable ledger, which is byte-identical to a ledger with no rows, so a
+// shop with no Redis credentials rendered as a normal shop where nothing
+// happened to be buyable. It answers 503 now and the client carries
+// `unavailable` so the pages can tell the two apart.
+//
 //   node --test test/shop-read.test.mjs
 
 import test from "node:test";
@@ -32,23 +38,25 @@ function useRedis() {
 
 // --- server: api/inventory.ts ----------------------------------------------
 
-test("with redis unconfigured, GET /api/inventory answers 200 with no pieces", async () => {
+test("with redis unconfigured, GET /api/inventory answers 503 rather than an empty ledger", async () => {
   clearRedisEnv();
   const res = makeRes();
   await handler(makeReq({ method: "GET" }), res);
-  assert.equal(res.statusCode, 200, "must not be a 500 — the shop still has to render");
-  assert.deepEqual(res.body, { pieces: {} });
+  assert.equal(res.statusCode, 503);
+  assert.equal(typeof res.body.error, "string");
+  assert.equal(res.body.pieces, undefined, "an unreadable ledger must not look like an empty one");
 });
 
-test("when the redis call throws, the read still answers 200 with no pieces", async () => {
+test("when the redis call throws, the read answers 503 rather than an empty ledger", async () => {
   // A real server, wrong token: command() gets a 401 and throws, same as any
   // other storage hiccup would.
   process.env.KV_REST_API_URL = redis.url;
   process.env.KV_REST_API_TOKEN = "wrong-token";
   const res = makeRes();
   await handler(makeReq({ method: "GET" }), res);
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { pieces: {} });
+  assert.equal(res.statusCode, 503);
+  assert.equal(typeof res.body.error, "string");
+  assert.equal(res.body.pieces, undefined);
 });
 
 test("stock present: price, quantity and soldOut are reported correctly", async () => {
@@ -104,31 +112,45 @@ async function freshClientModule(tag) {
   return import(`${pathToFileURL(clientBundle).href}?case=${tag}`);
 }
 
-test("client: a rejected fetch resolves to an empty object instead of throwing", async () => {
+test("client: a rejected fetch resolves to no pieces, flagged unavailable, instead of throwing", async () => {
   const restore = stubGlobalFetch(async () => {
     throw new Error("network down");
   });
   try {
     const client = await freshClientModule("reject");
     const result = await client.loadInventory();
-    assert.deepEqual(result, {}, "a network blip must fall back to the catalog, not hang or throw");
+    assert.deepEqual(result.pieces, {}, "a network blip must fall back to the catalog, not hang or throw");
+    assert.equal(result.unavailable, true);
   } finally {
     restore();
   }
 });
 
-test("client: a 500 response resolves to an empty object instead of trusting the body", async () => {
+test("client: a 503 resolves to no pieces, flagged unavailable, and never trusts the body", async () => {
   // The body carries a "pieces" entry that would only show up if the ok-check
   // were removed — proving the guard, not just the status code, is doing the work.
   const restore = stubGlobalFetch(async () => ({
     ok: false,
-    status: 500,
+    status: 503,
     json: async () => ({ pieces: { "trap-slug": { price: 999, quantity: 5, soldOut: false } } }),
   }));
   try {
-    const client = await freshClientModule("500");
+    const client = await freshClientModule("503");
     const result = await client.loadInventory();
-    assert.deepEqual(result, {}, "an error response body must never be trusted as stock");
+    assert.deepEqual(result.pieces, {}, "an error response body must never be trusted as stock");
+    assert.equal(result.unavailable, true, "this is the flag the shop reads to tell error from empty");
+  } finally {
+    restore();
+  }
+});
+
+test("client: an ok response with no rows is empty, not unavailable", async () => {
+  const restore = stubGlobalFetch(async () => ({ ok: true, status: 200, json: async () => ({ pieces: {} }) }));
+  try {
+    const client = await freshClientModule("empty");
+    const result = await client.loadInventory();
+    assert.deepEqual(result.pieces, {});
+    assert.equal(result.unavailable, false, "a genuinely empty ledger is not a failure");
   } finally {
     restore();
   }

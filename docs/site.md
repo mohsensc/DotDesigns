@@ -13,7 +13,6 @@ DotDesigns/
 ├── client/            # React + TypeScript (Vite)
 │   ├── src/
 │   │   ├── pages/World.tsx       # home — the deck, and the loading gate
-│   │   ├── pages/Cover.tsx       # the former editorial cover, kept at /cover
 │   │   ├── lib/scrub-engine.js   # vanilla-JS scroll-scrub engine
 │   │   └── assets/dot-gold.png   # brand logo (used untouched)
 │   └── public/world/             # scene stills + clips (see "The film")
@@ -28,7 +27,6 @@ DotDesigns/
 - `/shop` — the catalog grid.
 - `/shop/:slug` — one piece.
 - `/shop/request` — the Special Request enquiry (composes a mailto, no backend).
-- `/cover` — the previous editorial Cover page (kept reachable).
 - everything else — 404.
 
 The catalog lives in `client/src/lib/catalog.ts` (types, price bands, demo pieces)

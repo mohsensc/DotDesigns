@@ -14,7 +14,8 @@ import {
 } from "../lib/catalog.ts";
 import ScaleFigure from "../components/ScaleFigure.tsx";
 import { formatBytes, isHeic, VIDEO_WARN_BYTES } from "./compress.ts";
-import { publishPiece, type MediaItem, type PublishPhase } from "./publish.ts";
+import { publishPiece, PublishCancelled, type MediaItem, type PublishPhase } from "./publish.ts";
+import ConfirmDialog from "./ConfirmDialog.tsx";
 import ScreenHeader from "./ScreenHeader.tsx";
 import { CatalogConflictError, loadInventoryRow, resolveMedia, StudioAuthError } from "./seam.ts";
 import { newId, slugify } from "./util.ts";
@@ -59,6 +60,19 @@ function itemsFrom(piece: Piece): MediaItem[] {
   return piece.media.map(m => ({ id: m.id, kind: m.kind, caption: m.caption ?? "", ref: m }));
 }
 
+/** The tool says "photos and videos" everywhere, so the messages should too. */
+function nounFor(kind: MediaItem["kind"]): string {
+  return kind === "video" ? "video" : "photo";
+}
+
+type FileNote = { id: string; text: string };
+
+/** A photo she took out, kept long enough to put back. */
+type RemovedItem = { item: MediaItem; index: number; wasCover: boolean };
+
+// One row per item down the page instead of a horizontal scroller: on a phone
+// nothing can be moved out of sight, and Up/Down match what she sees.
+
 // Two screens, in Instagram's order: pick the photos, then write about them.
 // Edit drops straight into the second one — most edits are a price or a typo.
 export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, onCancel, onSessionEnded }: Props) {
@@ -66,7 +80,10 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
   const [items, setItems] = useState<MediaItem[]>(() => itemsFrom(piece));
   const [coverItemId, setCoverItemId] = useState<string | undefined>(piece.coverId);
   const [removed, setRemoved] = useState<MediaRef[]>([]);
-  const [fileNotes, setFileNotes] = useState<string[]>([]);
+  const [fileNotes, setFileNotes] = useState<FileNote[]>([]);
+  // A running tally, not fileNotes.length — dismissing a note shouldn't change it.
+  const [skippedCount, setSkippedCount] = useState(0);
+  const [lastRemoved, setLastRemoved] = useState<RemovedItem | null>(null);
 
   const [title, setTitle] = useState(piece.title);
   const [priceStr, setPriceStr] = useState(piece.price == null ? "" : String(piece.price));
@@ -91,6 +108,35 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
 
   const [phase, setPhase] = useState<PublishPhase | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Everything she can change, in one shape. useRef keeps the first render's
+  // copy as the baseline; anything different means she'd lose work by leaving.
+  const form = {
+    media: items.map(i => `${i.id}:${i.caption}`),
+    coverItemId,
+    removedCount: removed.length,
+    title,
+    priceStr,
+    yearStr,
+    quantityStr,
+    notes,
+    category,
+    status,
+    blurb,
+    description,
+    materials,
+    dimensions,
+    unit,
+    heightStr,
+    lengthStr,
+    depthStr,
+    hasDepth,
+  };
+  const baselineRef = useRef(form);
+  const dirty = JSON.stringify(form) !== JSON.stringify(baselineRef.current);
 
   const objectUrls = useRef<string[]>([]);
   useEffect(() => {
@@ -106,6 +152,8 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
         if (cancelled || !row) return;
         setQuantityStr(String(row.quantity));
         setNotes(row.notes);
+        // The prefill isn't her editing, so it moves the baseline with it.
+        baselineRef.current = { ...baselineRef.current, quantityStr: String(row.quantity), notes: row.notes };
       })
       .catch(() => {
         if (!cancelled) setInventoryPrefillFailed(true);
@@ -126,22 +174,29 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
 
   function addFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const nextNotes: string[] = [];
+    const nextNotes: FileNote[] = [];
     const added: MediaItem[] = [];
+    let skipped = 0;
+    const note = (text: string) => nextNotes.push({ id: newId("note"), text });
 
     for (const file of Array.from(files)) {
       const isVideo = file.type.startsWith("video/");
       const isImage = file.type.startsWith("image/");
-      if (!isVideo && !isImage) continue;
+      if (!isVideo && !isImage) {
+        note(`${file.name} isn't a photo or a video, so it wasn't added.`);
+        skipped++;
+        continue;
+      }
 
       if (isImage && isHeic(file)) {
-        nextNotes.push(
+        note(
           `${file.name} is a HEIC photo, which the website can't show. On your iPhone open Settings > Camera > Formats and choose "Most Compatible", then take or re-save the photo and add it again.`,
         );
+        skipped++;
         continue;
       }
       if (isVideo && file.size > VIDEO_WARN_BYTES) {
-        nextNotes.push(`${file.name} is ${formatBytes(file.size)} — a video that big takes a while to upload.`);
+        note(`${file.name} is ${formatBytes(file.size)} — a video that big takes a while to upload.`);
       }
 
       const url = URL.createObjectURL(file);
@@ -155,7 +210,9 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
       });
     }
 
-    setFileNotes(nextNotes);
+    // Append. A clean second pick used to wipe the warning from the first one.
+    if (nextNotes.length) setFileNotes(prev => [...prev, ...nextNotes]);
+    if (skipped) setSkippedCount(c => c + skipped);
     if (added.length) setItems(prev => [...prev, ...added]);
   }
 
@@ -171,13 +228,29 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
   }
 
   function removeItem(id: string) {
+    const index = items.findIndex(i => i.id === id);
+    const target = items[index];
+    if (!target) return;
+    // Only a photo that's already on the server needs deleting later.
+    if (target.ref) setRemoved(r => [...r, target.ref!]);
+    setItems(prev => prev.filter(i => i.id !== id));
+    const wasCover = coverItemId === id;
+    if (wasCover) setCoverItemId(undefined);
+    setLastRemoved({ item: target, index, wasCover });
+  }
+
+  /** Put back the item, its place in the order, and the cover if it was one. */
+  function undoRemove() {
+    const undo = lastRemoved;
+    if (!undo) return;
     setItems(prev => {
-      const target = prev.find(i => i.id === id);
-      // Only a photo that's already on the server needs deleting later.
-      if (target?.ref) setRemoved(r => [...r, target.ref!]);
-      return prev.filter(i => i.id !== id);
+      const next = [...prev];
+      next.splice(Math.min(undo.index, next.length), 0, undo.item);
+      return next;
     });
-    setCoverItemId(current => (current === id ? undefined : current));
+    if (undo.item.ref) setRemoved(r => r.filter(m => m !== undo.item.ref));
+    if (undo.wasCover) setCoverItemId(undo.item.id);
+    setLastRemoved(null);
   }
 
   function setCaption(id: string, caption: string) {
@@ -185,7 +258,11 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
   }
 
   async function share() {
+    if (busy) return; // one publish at a time — two would race on the same piece
     setError(null);
+    setCancelling(false);
+    const controller = new AbortController();
+    abortRef.current = controller;
     const finalTitle = title.trim() || "Untitled piece";
     // Sold means none left. Letting her pick Sold and leave "1" here would say
     // sold in the studio while the shop kept selling it.
@@ -220,10 +297,15 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
         onUploaded: (itemId, ref) =>
           setItems(prev => prev.map(i => (i.id === itemId ? { ...i, ref, file: undefined } : i))),
         onPhase: setPhase,
+        signal: controller.signal,
       });
       onPosted(catalog, draft.id);
     } catch (err) {
       setPhase(null);
+      setCancelling(false);
+      abortRef.current = null;
+      // She stopped it herself. Straight back to the form, nothing to explain.
+      if (err instanceof PublishCancelled) return;
       if (err instanceof StudioAuthError) {
         setError("Your session ended. Sign in again, then tap Retry — nothing here is lost.");
         onSessionEnded();
@@ -237,15 +319,35 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
     }
   }
 
+  /** Ask before throwing work away; an untouched form just closes. */
+  function requestClose() {
+    if (dirty) setConfirmLeave(true);
+    else onCancel();
+  }
+
+  /** Uploads already sent stay attached to the items, so a retry won't resend. */
+  function cancelPublish() {
+    abortRef.current?.abort();
+    setCancelling(true);
+  }
+
   const headerTitle = mode === "new" ? "New piece" : "Edit piece";
   const rightLabel = step === "pick" ? "Next" : mode === "new" ? "Share" : "Done";
+
+  // The chevron goes back a step wherever there is one, and only closes at the
+  // end of the line — where it now asks first.
+  const backStep =
+    step === "pick" ? (mode === "edit" ? "details" : null) : mode === "new" ? "pick" : null;
+  const backLabel =
+    backStep === "details" ? "Back to the details" : backStep === "pick" ? "Back to the photos" : "Close";
 
   return (
     <div className="screen composer">
       <ScreenHeader
         title={headerTitle}
-        onBack={step === "details" && mode === "new" ? () => setStep("pick") : onCancel}
-        backLabel={step === "details" && mode === "new" ? "Back to photos" : "Close"}
+        onBack={backStep ? () => setStep(backStep) : requestClose}
+        backLabel={backLabel}
+        backDisabled={busy}
         action={{
           label: rightLabel,
           disabled: busy || (step === "pick" ? items.length === 0 : false),
@@ -272,62 +374,100 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
 
             {fileNotes.length > 0 && (
               <ul className="file-notes">
-                {fileNotes.map((note, i) => (
-                  <li key={i}>{note}</li>
+                {fileNotes.map(note => (
+                  <li key={note.id}>
+                    <span>{note.text}</span>
+                    <button
+                      type="button"
+                      className="btn btn-small"
+                      onClick={() => setFileNotes(prev => prev.filter(n => n.id !== note.id))}
+                    >
+                      Got it
+                    </button>
+                  </li>
                 ))}
               </ul>
             )}
 
-            {items.length > 0 && (
-              <div className="strip">
-                {items.map((item, i) => (
-                  <div key={item.id} className={`strip-item${cover === item.id ? " strip-item-cover" : ""}`}>
-                    <div className="strip-thumb">
-                      {item.kind === "video" ? (
-                        <video src={srcOf(item)} muted playsInline preload="metadata" />
-                      ) : (
-                        <img src={srcOf(item)} alt="" />
-                      )}
-                      {cover === item.id && <span className="strip-cover-flag">Cover</span>}
-                    </div>
-                    <div className="strip-actions">
-                      <button
-                        type="button"
-                        className="btn btn-small"
-                        onClick={() => moveItem(item.id, -1)}
-                        disabled={i === 0}
-                        aria-label={`Move photo ${i + 1} left`}
-                      >
-                        Left
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-small"
-                        onClick={() => moveItem(item.id, 1)}
-                        disabled={i === items.length - 1}
-                        aria-label={`Move photo ${i + 1} right`}
-                      >
-                        Right
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-small btn-block"
-                      disabled={cover === item.id}
-                      onClick={() => setCoverItemId(item.id)}
-                    >
-                      {cover === item.id ? "Cover" : "Make cover"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-small btn-danger btn-block"
-                      onClick={() => removeItem(item.id)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
+            {(items.length > 0 || skippedCount > 0) && (
+              <p className="media-tally">
+                {items.length} ready to post
+                {skippedCount > 0 &&
+                  `, ${skippedCount} ${skippedCount === 1 ? "file" : "files"} couldn't be added`}
+              </p>
+            )}
+
+            {lastRemoved && (
+              <div className="file-notes media-undo">
+                <span>Took out one {nounFor(lastRemoved.item.kind)}.</span>
+                <button type="button" className="btn btn-small" onClick={undoRemove}>
+                  Put it back
+                </button>
               </div>
+            )}
+
+            {items.length > 0 && (
+              <ul className="media-list">
+                {items.map((item, i) => {
+                  const noun = nounFor(item.kind);
+                  const isCover = cover === item.id;
+                  return (
+                    <li key={item.id} className="media-row">
+                      <div className={`strip-thumb ${isCover ? "strip-thumb-cover" : ""}`.trim()}>
+                        {item.kind === "video" ? (
+                          <video src={srcOf(item)} muted playsInline preload="metadata" />
+                        ) : (
+                          <img src={srcOf(item)} alt="" />
+                        )}
+                        {isCover && <span className="strip-cover-flag">Cover</span>}
+                        {/* Off on its own corner, so a thumb aimed at Make cover
+                            can't land on it. */}
+                        <button
+                          type="button"
+                          className="media-remove"
+                          onClick={() => removeItem(item.id)}
+                          aria-label={`Take out ${noun} ${i + 1}`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className="media-row-body">
+                        <p className="media-position">
+                          {noun === "video" ? "Video" : "Photo"} {i + 1} of {items.length}
+                        </p>
+                        <div className="strip-actions">
+                          <button
+                            type="button"
+                            className="btn btn-small"
+                            onClick={() => moveItem(item.id, -1)}
+                            disabled={i === 0}
+                            aria-label={`Move ${noun} ${i + 1} up`}
+                          >
+                            Up
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-small"
+                            onClick={() => moveItem(item.id, 1)}
+                            disabled={i === items.length - 1}
+                            aria-label={`Move ${noun} ${i + 1} down`}
+                          >
+                            Down
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-small btn-block"
+                          disabled={isCover}
+                          onClick={() => setCoverItemId(item.id)}
+                        >
+                          {isCover ? "Cover" : "Make cover"}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </>
         ) : (
@@ -344,7 +484,7 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
                       )}
                     </div>
                     <label className="field">
-                      <span>What's in this photo?</span>
+                      <span>What's in this {nounFor(item.kind)}?</span>
                       <input
                         type="text"
                         value={item.caption}
@@ -563,7 +703,9 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
           {phase?.name === "uploading" && (
             <>
               <p>
-                Sending photo {phase.done + 1} of {phase.total}
+                {cancelling
+                  ? "Stopping. Nothing more will be sent."
+                  : `Sending ${phase.done + 1} of ${phase.total}`}
               </p>
               <div className="progress">
                 <div
@@ -571,6 +713,14 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
                   style={{ width: `${Math.round(((phase.done + phase.fraction) / phase.total) * 100)}%` }}
                 />
               </div>
+              <button
+                type="button"
+                className="btn btn-small cancel-publish"
+                onClick={cancelPublish}
+                disabled={cancelling}
+              >
+                {cancelling ? "Stopping…" : "Cancel"}
+              </button>
             </>
           )}
           {phase?.name === "posting" && <p>Posting…</p>}
@@ -583,6 +733,17 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
             </div>
           )}
         </div>
+      )}
+
+      {confirmLeave && (
+        <ConfirmDialog
+          title="Leave without saving?"
+          body="The changes you made here won't be kept."
+          confirmLabel="Leave"
+          cancelLabel="Keep editing"
+          onConfirm={onCancel}
+          onCancel={() => setConfirmLeave(false)}
+        />
       )}
     </div>
   );

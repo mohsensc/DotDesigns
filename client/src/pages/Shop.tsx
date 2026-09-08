@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { loadCatalog } from "../lib/catalog-store";
+import { CONTACT_EMAIL } from "../lib/inquiry";
 import { publicPieces, CATEGORY_LABELS, type Catalog, type Piece, type PieceCategory } from "../lib/catalog";
 import { useDocumentTitle } from "../lib/use-document-title";
 import SiteChrome from "../components/SiteChrome.tsx";
@@ -19,23 +20,30 @@ const SCROLL_KEY = "dot-shop-scroll";
 export default function Shop() {
   useDocumentTitle("Shop");
   const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [failed, setFailed] = useState(false);
+  // Bumped by Retry. loadCatalog() holds no cache, so re-running the effect is
+  // the whole retry — there's nothing to invalidate first.
+  const [attempt, setAttempt] = useState(0);
   const [filter, setFilter] = useState<Filter>("all");
   const restored = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    // A failed fetch leaves the grid in its loading state rather than
-    // throwing — the endpoint already falls back to the demo pieces, so this
-    // only happens when the network is gone.
+    setFailed(false);
     loadCatalog()
       .then(c => {
         if (!cancelled) setCatalog(c);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Any non-ok response lands here, not just a dead network. Left
+        // unhandled the grid sat on "Loading the catalog…" forever, which
+        // looks like a page that is still working.
+        if (!cancelled) setFailed(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
   // Track the position as it happens rather than reading it on the way out.
   // By the time an unmount cleanup runs, React has already pulled the grid out
@@ -155,7 +163,21 @@ export default function Shop() {
         ))}
       </nav>
 
-      {catalog === null ? (
+      {catalog === null && failed ? (
+        <div className="shop__failed">
+          <p className="shop__failed-title">Couldn't load the catalog.</p>
+          <p className="shop__failed-note">
+            Something went wrong at our end. Try again, or write to{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="shop__failed-link">
+              {CONTACT_EMAIL}
+            </a>{" "}
+            and we'll send you what's available.
+          </p>
+          <button type="button" className="shop__retry" onClick={() => setAttempt(a => a + 1)}>
+            Try again
+          </button>
+        </div>
+      ) : catalog === null ? (
         <p className="shop__status">Loading the catalog…</p>
       ) : shown.length === 0 ? (
         <p className="shop__status">Nothing in this category right now.</p>
