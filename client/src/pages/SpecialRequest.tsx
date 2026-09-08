@@ -1,10 +1,17 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { PRICE_BANDS, formatPrice } from "../lib/catalog";
 import { CONTACT_EMAIL, looksLikeEmail, sendInquiry } from "../lib/inquiry";
 import { useDocumentTitle } from "../lib/use-document-title";
 import SiteChrome from "../components/SiteChrome.tsx";
 import "./SpecialRequest.css";
+
+const FIELD_LABELS: Record<string, string> = {
+  name: "Name",
+  email: "Email",
+  brief: "What you have in mind",
+  bandId: "Budget range",
+};
 
 type FormState = {
   name: string;
@@ -33,18 +40,15 @@ const EMPTY: FormState = {
 
 function buildMessage(f: FormState): string {
   const band = PRICE_BANDS.find(b => b.id === f.bandId);
-  return [
-    `Name: ${f.name || "—"}`,
-    `Email: ${f.email || "—"}`,
-    "",
-    "What they have in mind:",
-    f.brief || "—",
-    "",
-    `Space / room: ${f.space || "—"}`,
-    `Rough dimensions: ${f.dimensions || "—"}`,
-    `Timeline: ${f.timeline || "—"}`,
-    `Budget range: ${band ? `${band.label} — ${band.note}` : "—"}`,
-  ].join("\n");
+  const lines: string[] = [];
+  if (f.name.trim()) lines.push(`Name: ${f.name}`);
+  if (f.email.trim()) lines.push(`Email: ${f.email}`);
+  if (f.brief.trim()) lines.push("", "What I have in mind:", f.brief);
+  if (f.space.trim()) lines.push(`Space / room: ${f.space}`);
+  if (f.dimensions.trim()) lines.push(`Rough dimensions: ${f.dimensions}`);
+  if (f.timeline.trim()) lines.push(`Timeline: ${f.timeline}`);
+  if (band) lines.push("", `Budget range: ${band.label} — ${band.note}`);
+  return lines.join("\n");
 }
 
 export default function SpecialRequest() {
@@ -54,6 +58,10 @@ export default function SpecialRequest() {
   const [touched, setTouched] = useState(false);
   const [sendState, setSendState] = useState<SendState>("idle");
   const [sendError, setSendError] = useState<string | null>(null);
+  const [summaryFocusTick, setSummaryFocusTick] = useState(0);
+
+  const summaryRef = useRef<HTMLDivElement | null>(null);
+  const successHeadingRef = useRef<HTMLHeadingElement | null>(null);
 
   const errors = useMemo(() => {
     const e: Partial<Record<keyof FormState, string>> = {};
@@ -66,6 +74,22 @@ export default function SpecialRequest() {
 
   const isValid = Object.keys(errors).length === 0;
   const message = buildMessage(form);
+  const hasMessage = message.trim().length > 0;
+
+  // Focus the error summary whenever a failed submit produces one — moves
+  // both the visual focus and the screen reader's attention to it.
+  useEffect(() => {
+    if (touched && !isValid && summaryFocusTick > 0) {
+      summaryRef.current?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryFocusTick]);
+
+  useEffect(() => {
+    if (sendState === "sent") {
+      successHeadingRef.current?.focus();
+    }
+  }, [sendState]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -74,7 +98,10 @@ export default function SpecialRequest() {
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setTouched(true);
-    if (!isValid || sendState === "sending") return;
+    if (!isValid || sendState === "sending") {
+      if (!isValid) setSummaryFocusTick(t => t + 1);
+      return;
+    }
 
     const band = PRICE_BANDS.find(b => b.id === form.bandId);
     setSendState("sending");
@@ -108,7 +135,9 @@ export default function SpecialRequest() {
         </Link>
         <header className="request__header">
           <p className="request__eyebrow">Special Request</p>
-          <h1 className="request__title">Got it — thank you.</h1>
+          <h1 className="request__title" ref={successHeadingRef} tabIndex={-1}>
+            Got it — thank you.
+          </h1>
           <p className="request__lede">
             The studio has your request and will reply to {form.email} directly.
           </p>
@@ -135,22 +164,67 @@ export default function SpecialRequest() {
 
       <div className="request__layout">
         <form className="request__form" onSubmit={handleSubmit} noValidate>
-          <div className="request__field">
-            <label htmlFor="rq-name">Name</label>
-            <input id="rq-name" type="text" value={form.name} onChange={e => set("name", e.target.value)} />
-            {touched && errors.name && <p className="request__error">{errors.name}</p>}
-          </div>
+          {touched && !isValid && (
+            <div className="request__summary" role="alert" tabIndex={-1} ref={summaryRef}>
+              <p className="request__summary-title">A few things need fixing:</p>
+              <ul className="request__summary-list">
+                {(Object.keys(errors) as (keyof FormState)[]).map(key => (
+                  <li key={key}>
+                    <a href={`#rq-${key}`}>{FIELD_LABELS[key] ?? key}</a> — {errors[key]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-          <div className="request__field">
-            <label htmlFor="rq-email">Email</label>
-            <input id="rq-email" type="email" value={form.email} onChange={e => set("email", e.target.value)} />
-            {touched && errors.email && <p className="request__error">{errors.email}</p>}
+          <div className="request__row">
+            <div className="request__field">
+              <label htmlFor="rq-name">Name</label>
+              <input
+                id="rq-name"
+                type="text"
+                required
+                value={form.name}
+                onChange={e => set("name", e.target.value)}
+                aria-invalid={touched && !!errors.name}
+                aria-describedby={touched && errors.name ? "rq-name-error" : undefined}
+              />
+              {touched && errors.name && (
+                <p className="request__error" id="rq-name-error">{errors.name}</p>
+              )}
+            </div>
+
+            <div className="request__field">
+              <label htmlFor="rq-email">Email</label>
+              <input
+                id="rq-email"
+                type="email"
+                required
+                value={form.email}
+                onChange={e => set("email", e.target.value)}
+                aria-invalid={touched && !!errors.email}
+                aria-describedby={touched && errors.email ? "rq-email-error" : undefined}
+              />
+              {touched && errors.email && (
+                <p className="request__error" id="rq-email-error">{errors.email}</p>
+              )}
+            </div>
           </div>
 
           <div className="request__field">
             <label htmlFor="rq-brief">What do you have in mind</label>
-            <textarea id="rq-brief" rows={5} value={form.brief} onChange={e => set("brief", e.target.value)} />
-            {touched && errors.brief && <p className="request__error">{errors.brief}</p>}
+            <textarea
+              id="rq-brief"
+              rows={5}
+              required
+              value={form.brief}
+              onChange={e => set("brief", e.target.value)}
+              aria-invalid={touched && !!errors.brief}
+              aria-describedby={touched && errors.brief ? "rq-brief-error" : undefined}
+            />
+            {touched && errors.brief && (
+              <p className="request__error" id="rq-brief-error">{errors.brief}</p>
+            )}
           </div>
 
           <div className="request__row">
@@ -187,7 +261,15 @@ export default function SpecialRequest() {
             />
           </div>
 
-          <fieldset className="request__field request__fieldset">
+          <fieldset
+            id="rq-bandId"
+            className="request__field request__fieldset"
+            // The error summary links here; a fieldset takes focus only with this.
+            tabIndex={-1}
+            aria-required="true"
+            aria-invalid={touched && !!errors.bandId}
+            aria-describedby={touched && errors.bandId ? "rq-bandId-error" : undefined}
+          >
             <legend>Budget range</legend>
             <div className="request__bands">
               {PRICE_BANDS.map(band => (
@@ -195,6 +277,7 @@ export default function SpecialRequest() {
                   <input
                     type="radio"
                     name="bandId"
+                    required
                     value={band.id}
                     checked={form.bandId === band.id}
                     onChange={() => set("bandId", band.id)}
@@ -207,7 +290,9 @@ export default function SpecialRequest() {
                 </label>
               ))}
             </div>
-            {touched && errors.bandId && <p className="request__error">{errors.bandId}</p>}
+            {touched && errors.bandId && (
+              <p className="request__error" id="rq-bandId-error">{errors.bandId}</p>
+            )}
           </fieldset>
 
           {/* Honeypot — hidden from real visitors, not display:none since some
@@ -226,7 +311,9 @@ export default function SpecialRequest() {
             />
           </div>
 
-          {sendState === "failed" && sendError && <p className="request__error">{sendError}</p>}
+          {sendState === "failed" && sendError && (
+            <p className="request__error" role="alert">{sendError}</p>
+          )}
 
           <button type="submit" className="request__submit" disabled={sendState === "sending"}>
             {sendState === "sending" ? "Sending…" : "Send the request"}
@@ -234,20 +321,21 @@ export default function SpecialRequest() {
 
           {sendState === "failed" && (
             <p className="request__fallback">
-              Or email{" "}
-              <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> directly — the message
-              below is ready to copy in.
+              Or copy the message below and email it to{" "}
+              <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> directly.
             </p>
           )}
         </form>
 
+        {/* Always rendered: hiding it made the form jump 400px wider at the
+            first keystroke. Empty, it just says what it's for. */}
         <aside className="request__preview">
           <p className="request__preview-label">Message preview</p>
-          <pre className="request__preview-body">{message}</pre>
-          <p className="request__preview-hint">
-            If sending fails, copy this and send it to{" "}
-            <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
-          </p>
+          {hasMessage ? (
+            <pre className="request__preview-body">{message}</pre>
+          ) : (
+            <p className="request__preview-empty">Fills in as you write.</p>
+          )}
         </aside>
       </div>
     </SiteChrome>
