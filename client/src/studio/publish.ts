@@ -21,6 +21,14 @@ export type PublishPhase =
   | { name: "uploading"; done: number; total: number; fraction: number }
   | { name: "posting" };
 
+/** She tapped Cancel. Not an error to show her — just stop and go back. */
+export class PublishCancelled extends Error {
+  constructor() {
+    super("Cancelled");
+    this.name = "PublishCancelled";
+  }
+}
+
 type Args = {
   piece: Piece;
   items: MediaItem[];
@@ -35,6 +43,8 @@ type Args = {
   /** Hand back each upload so a retry doesn't send the same photo twice. */
   onUploaded: (itemId: string, ref: MediaRef) => void;
   onPhase: (phase: PublishPhase) => void;
+  /** Cancel. Stops the file in flight, and nothing after it is sent or saved. */
+  signal?: AbortSignal;
 };
 
 /**
@@ -43,7 +53,10 @@ type Args = {
  * still in memory; everything else comes back as a plain Error to show.
  */
 export async function publishPiece(args: Args): Promise<Catalog> {
-  const { piece, items, quantity, notes, removed, getExpectedUpdatedAt, onUploaded, onPhase } = args;
+  const { piece, items, quantity, notes, removed, getExpectedUpdatedAt, onUploaded, onPhase, signal } = args;
+  const stopIfCancelled = () => {
+    if (signal?.aborted) throw new PublishCancelled();
+  };
 
   const pending = items.filter(i => !i.ref && i.file);
   const refs = new Map<string, MediaRef>();
@@ -51,15 +64,24 @@ export async function publishPiece(args: Args): Promise<Catalog> {
 
   let done = 0;
   for (const item of pending) {
+    stopIfCancelled();
     const file = item.file!;
     onPhase({ name: "uploading", done, total: pending.length, fraction: 0 });
     const blob = item.kind === "image" ? (await compressImage(file)).blob : file;
-    const ref = await uploadMedia(blob, {
-      pieceId: piece.id,
-      filename: file.name,
-      kind: item.kind,
-      onProgress: fraction => onPhase({ name: "uploading", done, total: pending.length, fraction }),
-    });
+    let ref: MediaRef;
+    try {
+      ref = await uploadMedia(blob, {
+        pieceId: piece.id,
+        filename: file.name,
+        kind: item.kind,
+        onProgress: fraction => onPhase({ name: "uploading", done, total: pending.length, fraction }),
+        signal,
+      });
+    } catch (err) {
+      // An aborted put rejects with its own error; she cancelled, so say that.
+      if (signal?.aborted) throw new PublishCancelled();
+      throw err;
+    }
     refs.set(item.id, ref);
     onUploaded(item.id, ref);
     done++;
@@ -78,6 +100,9 @@ export async function publishPiece(args: Args): Promise<Catalog> {
   const coverRef = args.coverItemId ? refs.get(args.coverItemId) : undefined;
   const saved: Piece = { ...piece, media, coverId: coverRef?.id };
 
+  // Last chance to bail. Past here the piece is written and cancelling would
+  // leave her looking at a form that's already been saved.
+  stopIfCancelled();
   onPhase({ name: "posting" });
   let catalog: Catalog;
   try {

@@ -242,38 +242,47 @@ export default function InventoryTable({ session, onSessionEnded }: Props) {
                     <span className="inventory-title">{row.title}</span>
                   </td>
                   <td>
-                    <span className="inv-cell-label">Price</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={draft.priceStr}
-                      placeholder="Blank = not for sale"
-                      onChange={e => updateDraft(row.slug, { priceStr: e.target.value, status: "idle", message: null })}
-                      onBlur={() => void save(row)}
-                    />
+                    <label className="inv-cell">
+                      <span className="inv-cell-label">Price</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={draft.priceStr}
+                        placeholder="Blank = not for sale"
+                        onChange={e => updateDraft(row.slug, { priceStr: e.target.value, status: "idle", message: null })}
+                        onBlur={() => void save(row)}
+                      />
+                    </label>
                   </td>
                   <td>
-                    <span className="inv-cell-label">Quantity</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      step={1}
-                      value={draft.quantityStr}
-                      onChange={e => updateDraft(row.slug, { quantityStr: e.target.value, status: "idle", message: null })}
-                      onBlur={() => void save(row)}
-                    />
-                    <span className="inv-cell-hint">0 = sold out on the website</span>
+                    <label className="inv-cell">
+                      <span className="inv-cell-label">Quantity</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={1}
+                        value={draft.quantityStr}
+                        aria-describedby={`inv-qty-hint-${row.slug}`}
+                        onChange={e => updateDraft(row.slug, { quantityStr: e.target.value, status: "idle", message: null })}
+                        onBlur={() => void save(row)}
+                      />
+                    </label>
+                    <span className="inv-cell-hint" id={`inv-qty-hint-${row.slug}`}>
+                      0 = sold out on the website
+                    </span>
                   </td>
                   <td>
-                    <span className="inv-cell-label">Notes (for you only — never shown on the site)</span>
-                    <input
-                      type="text"
-                      value={draft.notes}
-                      placeholder="For you only — never shown on the site"
-                      onChange={e => updateDraft(row.slug, { notes: e.target.value, status: "idle", message: null })}
-                      onBlur={() => void save(row)}
-                    />
+                    <label className="inv-cell">
+                      <span className="inv-cell-label">Notes (for you only — never shown on the site)</span>
+                      <input
+                        type="text"
+                        value={draft.notes}
+                        placeholder="For you only — never shown on the site"
+                        onChange={e => updateDraft(row.slug, { notes: e.target.value, status: "idle", message: null })}
+                        onBlur={() => void save(row)}
+                      />
+                    </label>
                   </td>
                   <td className="inventory-save-cell">
                     <button
