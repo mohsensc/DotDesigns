@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { loadCatalog, resolveMedia } from "../lib/catalog-store";
 import { sendInquiry, looksLikeEmail, CONTACT_EMAIL } from "../lib/inquiry";
-import { loadInventory, type StockEntry } from "../lib/inventory";
+import { loadInventory, refreshInventory, type StockEntry } from "../lib/inventory";
 import { useDocumentTitle } from "../lib/use-document-title";
 import {
   coverOf,
@@ -21,11 +21,40 @@ import "./PieceDetail.css";
 type SendState = "idle" | "sending" | "sent" | "failed";
 type BuyState = "idle" | "sending" | "failed";
 
+function newHoldId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `h${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+  }
+}
+
+function holdIdFor(slug: string): string {
+  const storageKey = `dd:hold:${slug}`;
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved && /^[A-Za-z0-9_-]{8,64}$/.test(saved)) return saved;
+    const fresh = newHoldId();
+    localStorage.setItem(storageKey, fresh);
+    return fresh;
+  } catch {
+    return newHoldId();
+  }
+}
+
 export default function PieceDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  // Bumped by Retry. loadCatalog() holds no cache, so re-running the effect is
+  // the whole retry — there's nothing to invalidate first.
+  const [attempt, setAttempt] = useState(0);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [stock, setStock] = useState<StockEntry | undefined>(undefined);
+  const [ledgerDown, setLedgerDown] = useState(false);
+  const [inventoryPending, setInventoryPending] = useState(true);
+  const loadingRef = useRef<HTMLParagraphElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   // Raised while a dot or thumb is animating the track. Without it the
   // observer below reports every slide the smooth scroll flies past, and the
@@ -34,25 +63,43 @@ export default function PieceDetail() {
 
   useEffect(() => {
     let cancelled = false;
+    setCatalogFailed(false);
     loadCatalog()
       .then(c => {
         if (!cancelled) setCatalog(c);
       })
-      .catch(() => {});
+      .catch(() => {
+        // A 500 or a Redis blip lands here too, not just a dead network. Left
+        // unhandled the page sat on the word "Loading…" forever and looked like
+        // it was still working.
+        if (!cancelled) setCatalogFailed(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
   useEffect(() => {
     let cancelled = false;
+    setInventoryPending(true);
     loadInventory().then(inventory => {
-      if (!cancelled) setStock(inventory[slug ?? ""]);
+      if (cancelled) return;
+      setStock(inventory.pieces[slug ?? ""]);
+      setLedgerDown(inventory.unavailable);
+      setInventoryPending(false);
     });
     return () => {
       cancelled = true;
     };
   }, [slug]);
+
+  useEffect(() => {
+    function onShow(e: PageTransitionEvent) {
+      if (e.persisted) setBuyState("idle");
+    }
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
 
   // Arriving from the grid, which restores its own scroll position on the way
   // back — without this you'd land halfway down the piece page.
@@ -61,6 +108,12 @@ export default function PieceDetail() {
   }, [slug]);
 
   const piece = useMemo(() => catalog?.pieces.find(p => p.slug === slug), [catalog, slug]);
+
+  useEffect(() => {
+    if (attempt === 0) return;
+    if (piece) headingRef.current?.focus();
+    else if (!catalogFailed) loadingRef.current?.focus();
+  }, [attempt, piece, catalogFailed]);
 
   useDocumentTitle(piece?.title);
 
@@ -131,7 +184,11 @@ export default function PieceDetail() {
 
   // The sheet is the live stock number and wins over the catalog's own status
   // whenever there's an entry for this slug — same rule as the shop grid.
-  const soldOut = stock ? stock.soldOut : piece?.status === "sold";
+  const soldOut = piece?.status === "sold" || (stock ? stock.soldOut : false);
+  // Reserved and sold ask for different things: one wants telling when it frees
+  // up, the other wants a comparable commission. Sold wins if the ledger says
+  // the piece is gone, whatever the catalog still calls it.
+  const reserved = !soldOut && piece?.status === "reserved";
   // What to show is not the same question as what we can charge. The sheet's
   // price may be present-but-unparseable (null = "not for sale", per
   // inventory.ts) — that must block the button even though the catalog still
@@ -140,7 +197,7 @@ export default function PieceDetail() {
   // /api/checkout reads the sheet row to price and decrement stock, so a
   // piece with no sheet entry (or an unpriced one, or a sold-out one) is
   // never purchasable — the Buy button stays disabled for all three.
-  const canBuy = !!stock && !stock.soldOut && stock.price != null;
+  const canBuy = !!stock && !stock.soldOut && stock.price != null && piece?.status === "available";
   const lowStock = !!stock && !stock.soldOut && stock.quantity > 0 && stock.quantity <= 2;
 
   // Whether the visitor has touched the message box — once they have, the
@@ -160,16 +217,17 @@ export default function PieceDetail() {
 
   useEffect(() => {
     if (!piece || messageTouched) return;
-    const unavailable = soldOut || piece.status === "reserved";
     setMessage(
-      unavailable
+      soldOut
         ? `Hi, I'm interested in something similar to "${piece.title}". Could you tell me about a comparable commission?`
-        : `Hi, I'd like to ask about "${piece.title}".`,
+        : reserved
+          ? `Hi, could you let me know if "${piece.title}" frees up?`
+          : `Hi, I'd like to ask about "${piece.title}".`,
     );
     // This re-runs once the inventory fetch resolves and soldOut flips from
     // its initial guess — as long as the visitor hasn't typed anything yet,
     // the copy corrects itself instead of drifting from the heading below.
-  }, [piece, soldOut, messageTouched]);
+  }, [piece, soldOut, reserved, messageTouched]);
 
   async function handleBuy() {
     if (!piece || !canBuy) return;
@@ -179,12 +237,16 @@ export default function PieceDetail() {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug: piece.slug }),
+        body: JSON.stringify({ slug: piece.slug, holdId: holdIdFor(piece.slug) }),
       });
       const body = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
       if (!res.ok || !body?.url) {
         setBuyState("failed");
         setBuyError(body?.error || "Couldn't start checkout. Please try again.");
+        if (res.status === 409) {
+          const inventory = await refreshInventory();
+          setStock(inventory.pieces[piece.slug]);
+        }
         return;
       }
       window.location.href = body.url;
@@ -206,10 +268,31 @@ export default function PieceDetail() {
     );
   }
 
+  if (!piece && catalogFailed) {
+    return (
+      <SiteChrome className="pd pd--empty">
+        <p className="pd__eyebrow" role="alert">Not loaded</p>
+        <h1 className="pd__empty-title">Couldn't load the catalog.</h1>
+        <p className="pd__failed-note">
+          Something went wrong at our end. Try again, or write to{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and we'll send you the details.
+        </p>
+        <button type="button" className="pd__enquire" onClick={() => setAttempt(a => a + 1)}>
+          Try again
+        </button>
+        <Link to="/shop" className="pd__back">
+          &larr;&nbsp; Back to the shop
+        </Link>
+      </SiteChrome>
+    );
+  }
+
   if (!piece) {
     return (
       <SiteChrome className="pd pd--empty">
-        <p className="pd__status">Loading…</p>
+        <p className="pd__status" role="status" tabIndex={-1} ref={loadingRef}>
+          Loading…
+        </p>
       </SiteChrome>
     );
   }
@@ -342,7 +425,9 @@ export default function PieceDetail() {
             {CATEGORY_LABELS[piece.category]}
             {piece.year ? ` · ${piece.year}` : ""}
           </p>
-          <h1 className="pd__title">{piece.title}</h1>
+          <h1 className="pd__title" tabIndex={-1} ref={headingRef}>
+            {piece.title}
+          </h1>
 
           <p className="pd__pricerow">
             <span className="pd__price">{formatPrice(displayPrice)}</span>
@@ -366,17 +451,31 @@ export default function PieceDetail() {
               <span className="pd__bar-label">{CATEGORY_LABELS[piece.category]}</span>
               <span className="pd__bar-price">{soldOut ? "Sold out" : formatPrice(displayPrice)}</span>
             </div>
-            {canBuy ? (
+            {inventoryPending ? (
+              <button type="button" className="pd__buy" disabled>
+                Checking stock…
+              </button>
+            ) : canBuy ? (
               <button type="button" className="pd__buy" onClick={handleBuy} disabled={buyState === "sending"}>
                 {buyState === "sending" ? "Redirecting…" : "Buy now"}
               </button>
             ) : (
               <a className="pd__buy pd__buy--quiet" href="#piece-enquire">
-                {soldOut || piece.status === "reserved" ? "Ask about a similar piece" : "Enquire"}
+                {soldOut ? "Ask about a similar piece" : reserved ? "Ask to be notified" : "Ask to buy"}
               </a>
             )}
           </div>
-          {buyState === "failed" && <p className="pd__error">{buyError}</p>}
+          {buyState === "failed" && (
+            <p className="pd__error" role="alert">
+              <strong className="pd__error-mark">Error:</strong> {buyError}
+            </p>
+          )}
+          {ledgerDown && !soldOut && !reserved && displayPrice != null && (
+            <p className="pd__note">
+              Checkout is unavailable right now, so the price above is the catalog's.{" "}
+              <a href="#piece-enquire">Ask to buy this piece</a> and we'll take it from there.
+            </p>
+          )}
 
           <p className="pd__description">{piece.description}</p>
 
@@ -407,13 +506,17 @@ export default function PieceDetail() {
 
           <div className="pd__action" id="piece-enquire">
             {sendState === "sent" ? (
-              <p className="pd__sent">Sent. We'll get back to you at {email}.</p>
+              <p className="pd__sent" role="status">
+                Sent. We'll get back to you at {email}.
+              </p>
             ) : (
               <form className="pd__form" onSubmit={handleSubmit} noValidate>
                 <h2 className="pd__form-title">
-                  {soldOut || piece.status === "reserved"
+                  {soldOut
                     ? "Ask about a similar piece"
-                    : "Enquire about this piece"}
+                    : reserved
+                      ? "Ask to be notified"
+                      : "Enquire about this piece"}
                 </h2>
 
                 {/* Honeypot: real visitors never see or fill this in. */}
@@ -453,8 +556,9 @@ export default function PieceDetail() {
                 </label>
 
                 {sendState === "failed" && (
-                  <p className="pd__error">
-                    {sendError} Or <a href={`mailto:${CONTACT_EMAIL}`}>email {CONTACT_EMAIL} directly</a>.
+                  <p className="pd__error" role="alert">
+                    <strong className="pd__error-mark">Error:</strong> {sendError} Or{" "}
+                    <a href={`mailto:${CONTACT_EMAIL}`}>email {CONTACT_EMAIL} directly</a>.
                   </p>
                 )}
 

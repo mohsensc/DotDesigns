@@ -115,25 +115,84 @@ export async function getInventory(): Promise<Map<string, InventoryRow>> {
   return map;
 }
 
-/** Creates or updates a piece. Quantity is written straight, not decremented. */
-export async function upsertPiece(piece: {
-  slug: string;
-  title: string;
-  price: number | null;
-  quantity: number;
-  notes: string;
-}): Promise<void> {
+const QUANTITY_LUA = `
+local source = redis.call('GET', KEYS[2])
+if ARGV[1] ~= '' and tonumber(source or '0') ~= tonumber(ARGV[1]) then return -1 end
+if ARGV[2] ~= '' then
+  redis.call('SET', KEYS[1], ARGV[2])
+elseif KEYS[1] ~= KEYS[2] and source then
+  redis.call('SET', KEYS[1], source)
+end
+return 1
+`;
+
+export const MIN_PRICE = 0.5;
+
+export type QuantityIntent = { ok: true; quantity?: number; expected?: number } | { ok: false };
+
+function blank(raw: unknown): boolean {
+  return raw === undefined || raw === null || raw === "";
+}
+
+export function readQuantityIntent(body: { quantity?: unknown; expectedQuantity?: unknown }): QuantityIntent {
+  let quantity: number | undefined;
+  let expected: number | undefined;
+  if (!blank(body.quantity)) {
+    const value = parseAmount(body.quantity);
+    if (value === null || !Number.isInteger(value)) return { ok: false };
+    quantity = value;
+  }
+  if (!blank(body.expectedQuantity)) {
+    const value = parseAmount(body.expectedQuantity);
+    if (value === null || !Number.isInteger(value)) return { ok: false };
+    expected = value;
+  }
+  if (quantity !== undefined && quantity === expected) return { ok: true };
+  return { ok: true, quantity, expected };
+}
+
+/**
+ * Creates or updates a piece. Returns false when the stock was changed by
+ * someone else since `guard.expected` was read, in which case the count is
+ * left alone. Leaving quantity out keeps the stored count, carrying it over
+ * from `guard.fromSlug` when the piece was renamed.
+ */
+export async function upsertPiece(
+  piece: {
+    slug: string;
+    title: string;
+    price: number | null;
+    quantity?: number;
+    notes: string;
+  },
+  guard?: { expected?: number; fromSlug?: string },
+): Promise<boolean> {
   const meta: StoredMeta = {
     title: piece.title,
     price: piece.price,
     notes: piece.notes,
     updatedAt: new Date().toISOString(),
   };
+  const guarded = guard?.expected !== undefined || (piece.quantity === undefined && !!guard?.fromSlug);
+  let applied = true;
+  if (guarded) {
+    const result = await eval_<number>(
+      QUANTITY_LUA,
+      [qtyKey(piece.slug), qtyKey(guard?.fromSlug ?? piece.slug)],
+      [
+        guard?.expected === undefined ? "" : String(guard.expected),
+        piece.quantity === undefined ? "" : String(Math.max(0, Math.trunc(piece.quantity))),
+      ],
+    );
+    applied = result !== -1;
+  } else if (piece.quantity !== undefined) {
+    await command(["SET", qtyKey(piece.slug), String(Math.max(0, Math.trunc(piece.quantity)))]);
+  }
   await Promise.all([
     command(["SADD", SLUGS_KEY, piece.slug]),
     command(["SET", metaKey(piece.slug), JSON.stringify(meta)]),
-    command(["SET", qtyKey(piece.slug), String(Math.max(0, Math.trunc(piece.quantity)))]),
   ]);
+  return applied;
 }
 
 /** Kept as the old name too — several endpoints were written against it. */
@@ -169,6 +228,65 @@ return remaining
 export async function decrementQuantity(slug: string, by: number): Promise<number> {
   const result = await eval_<number>(DECREMENT_LUA, [qtyKey(slug)], [Math.max(1, Math.trunc(by))]);
   return typeof result === "number" ? result : 0;
+}
+
+const holdsKey = (slug: string) => `inv:holds:${slug}`;
+const paidKey = (id: string) => `inv:paid:${id}`;
+
+export const HOLD_MS = 33 * 60 * 1000;
+
+const HOLD_LUA = `
+redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', ARGV[2])
+if redis.call('ZSCORE', KEYS[2], ARGV[1]) then
+  redis.call('ZADD', KEYS[2], ARGV[3], ARGV[1])
+  return 1
+end
+local stock = tonumber(redis.call('GET', KEYS[1]) or '0')
+if stock < 1 then return -1 end
+if stock - redis.call('ZCARD', KEYS[2]) < 1 then return 0 end
+redis.call('ZADD', KEYS[2], ARGV[3], ARGV[1])
+return 1
+`;
+
+export type HoldResult = "held" | "busy" | "soldOut";
+
+export async function holdPiece(slug: string, holdId: string, now: number = Date.now()): Promise<HoldResult> {
+  const result = await eval_<number>(
+    HOLD_LUA,
+    [qtyKey(slug), holdsKey(slug)],
+    [holdId, now, now + HOLD_MS],
+  );
+  if (result === 1) return "held";
+  return result === 0 ? "busy" : "soldOut";
+}
+
+export async function releaseHold(slug: string, holdId: string): Promise<void> {
+  await command(["ZREM", holdsKey(slug), holdId]);
+}
+
+const SALE_LUA = `
+if ARGV[2] ~= '' then
+  if redis.call('GET', KEYS[3]) then return -2 end
+  redis.call('SET', KEYS[3], '1', 'EX', 604800)
+end
+if ARGV[1] ~= '' then redis.call('ZREM', KEYS[2], ARGV[1]) end
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+if current <= 0 then return -1 end
+local remaining = current - 1
+redis.call('SET', KEYS[1], remaining)
+return remaining
+`;
+
+export type SaleResult = "sold" | "duplicate" | "oversold";
+
+export async function recordSale(slug: string, saleId: string, holdId: string): Promise<SaleResult> {
+  const result = await eval_<number>(
+    SALE_LUA,
+    [qtyKey(slug), holdsKey(slug), paidKey(saleId || "none")],
+    [holdId, saleId],
+  );
+  if (result === -2) return "duplicate";
+  return result === -1 ? "oversold" : "sold";
 }
 
 /** No cache to clear any more — reads go straight to Redis. Kept so callers compile. */

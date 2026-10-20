@@ -11,13 +11,6 @@
   --dot-accent: #b19556; /* gold */
   --dot-font-display: "Playfair Display", Georgia, "Times New Roman", serif;
   --dot-font-body: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-
-  /* The editorial Cover page predates the dark theme and still runs cream. */
-  --cream-1: #ece7dd;
-  --cream-2: #e3ded3;
-  --gold: #ad8c4f;
-  --ink: #18150f;
-  --muted: #4a463e;
 }
 
 /* The dark pages paint the document itself, so overscroll and any gap below the
@@ -40,6 +33,13 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+/* Prose everywhere gets widow control. Headings that need it balance locally —
+   balance is a class-level rule, so it wins over this. A browser without
+   text-wrap: pretty ignores the line and wraps as before. */
+p {
+  text-wrap: pretty;
 }
 
 /* One focus ring for the whole site. Every route runs the dark ground, so a

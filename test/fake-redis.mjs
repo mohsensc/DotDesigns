@@ -11,6 +11,7 @@ const TOKEN = "test-token";
 export function startFakeRedis() {
   const strings = new Map();
   const sets = new Map();
+  const sorted = new Map();
   const issued = [];
 
   function run(args) {
@@ -48,19 +49,59 @@ export function startFakeRedis() {
         return sets.get(rest[0])?.has(rest[1]) ? 1 : 0;
       case "SMEMBERS":
         return [...(sets.get(rest[0]) ?? [])];
+      case "ZREM":
+        sorted.get(rest[0])?.delete(rest[1]);
+        return 1;
       case "EVAL": {
-        // A literal translation of DECREMENT_LUA in api/_lib/inventory.ts.
-        // Kept line-for-line so a divergence is obvious on sight. The real
-        // atomicity is Redis's to provide; what's checked here is the maths
-        // and the sold-out signal.
+        const script = String(rest[0]);
         const numkeys = Number(rest[1]);
-        const key = rest[2];
-        const by = Number(rest[2 + numkeys]);
-        const current = Number(strings.get(key) ?? "0");
+        const keys = rest.slice(2, 2 + numkeys);
+        const argv = rest.slice(2 + numkeys);
+        if (script.includes("ZREMRANGEBYSCORE")) {
+          const members = sorted.get(keys[1]) ?? new Map();
+          sorted.set(keys[1], members);
+          for (const [member, score] of members) if (score <= Number(argv[1])) members.delete(member);
+          if (members.has(argv[0])) {
+            members.set(argv[0], Number(argv[2]));
+            return 1;
+          }
+          const stock = Number(strings.get(keys[0]) ?? "0");
+          if (stock < 1) return -1;
+          if (stock - members.size < 1) return 0;
+          members.set(argv[0], Number(argv[2]));
+          return 1;
+        }
+        if (script.includes("604800")) {
+          if (argv[1] !== "") {
+            if (strings.has(keys[2])) return -2;
+            strings.set(keys[2], "1");
+          }
+          if (argv[0] !== "") sorted.get(keys[1])?.delete(argv[0]);
+          const current = Number(strings.get(keys[0]) ?? "0");
+          if (current <= 0) return -1;
+          strings.set(keys[0], String(current - 1));
+          return current - 1;
+        }
+        if (script.includes("source")) {
+          const source = strings.get(keys[1]);
+          if (argv[0] !== "" && Number(source ?? "0") !== Number(argv[0])) return -1;
+          if (argv[1] !== "") strings.set(keys[0], argv[1]);
+          else if (keys[0] !== keys[1] && source !== undefined) strings.set(keys[0], source);
+          return 1;
+        }
+        if (script.includes("seen")) {
+          const seen = strings.has(keys[1]) ? strings.get(keys[1]) : argv[2];
+          if (seen !== argv[1]) return seen;
+          strings.set(keys[0], argv[0]);
+          strings.set(keys[1], argv[3]);
+          return "ok";
+        }
+        const by = Number(argv[0]);
+        const current = Number(strings.get(keys[0]) ?? "0");
         if (current <= 0) return -1;
         let remaining = current - by;
         if (remaining < 0) remaining = 0;
-        strings.set(key, String(remaining));
+        strings.set(keys[0], String(remaining));
         return remaining;
       }
       default:

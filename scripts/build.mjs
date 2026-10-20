@@ -34,11 +34,6 @@ const STATIC_PAGES = [
     description:
       "Commission a piece for your space. Tell us the room, the scale, and the budget, from small pottery to an on-site wall installation.",
   },
-  {
-    route: "/cover",
-    title: "Cover",
-    description: SITE_DESCRIPTION,
-  },
 ];
 
 function run(cmd, args) {
@@ -276,8 +271,6 @@ function injectHead(html, headMarkup) {
 }
 
 function writeSitemapAndRobots(pieces) {
-  // /cover is deliberately absent: it's the superseded editorial page, kept
-  // reachable but not something to invite search traffic to.
   const urls = [
     `${SITE_ORIGIN}/`,
     `${SITE_ORIGIN}/shop`,

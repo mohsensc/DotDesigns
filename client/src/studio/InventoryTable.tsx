@@ -50,9 +50,10 @@ type Props = {
   session?: number;
   /** Called on any 401 so the whole studio locks, not just this tab. */
   onSessionEnded?: () => void;
+  onSaved?: () => void;
 };
 
-export default function InventoryTable({ session, onSessionEnded }: Props) {
+export default function InventoryTable({ session, onSessionEnded, onSaved }: Props) {
   const [rows, setRows] = useState<InventoryRow[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -134,12 +135,26 @@ export default function InventoryTable({ session, onSessionEnded }: Props) {
           title: row.title,
           price: rawPrice === "" ? null : rawPrice,
           quantity: draft.quantityStr,
+          expectedQuantity: String(row.quantity),
           notes: draft.notes,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
         if (res.status === 401) onSessionEnded?.();
+        if (res.status === 409) {
+          const latest = await fetch(`/api/studio-inventory?slug=${encodeURIComponent(row.slug)}`);
+          const latestData = (await latest.json().catch(() => ({}))) as { row?: InventoryRow | null };
+          if (latest.ok && latestData.row) {
+            const fresh = latestData.row;
+            setRows(prev => (prev ? prev.map(r => (r.slug === fresh.slug ? fresh : r)) : prev));
+            setDrafts(prev => ({
+              ...prev,
+              [row.slug]: { ...draftFromRow(fresh), status: "failed", message: data.error ?? "The count changed. Try again." },
+            }));
+            return;
+          }
+        }
         updateDraft(row.slug, { status: "failed", message: errorFrom(res, data.error, "Couldn't save. Try again.") });
         return;
       }
@@ -149,6 +164,7 @@ export default function InventoryTable({ session, onSessionEnded }: Props) {
       // just what she pasted in. But if she kept typing while this was in
       // flight, don't stomp that with the echo — leave the newer draft alone
       // and let its own blur save it.
+      onSaved?.();
       const check = await fetch(`/api/studio-inventory?slug=${encodeURIComponent(row.slug)}`);
       const checkData = (await check.json().catch(() => ({}))) as { row?: InventoryRow | null };
       if (check.ok && checkData.row) {
@@ -242,38 +258,47 @@ export default function InventoryTable({ session, onSessionEnded }: Props) {
                     <span className="inventory-title">{row.title}</span>
                   </td>
                   <td>
-                    <span className="inv-cell-label">Price</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={draft.priceStr}
-                      placeholder="Blank = not for sale"
-                      onChange={e => updateDraft(row.slug, { priceStr: e.target.value, status: "idle", message: null })}
-                      onBlur={() => void save(row)}
-                    />
+                    <label className="inv-cell">
+                      <span className="inv-cell-label">Price</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={draft.priceStr}
+                        placeholder="Blank = not for sale"
+                        onChange={e => updateDraft(row.slug, { priceStr: e.target.value, status: "idle", message: null })}
+                        onBlur={() => void save(row)}
+                      />
+                    </label>
                   </td>
                   <td>
-                    <span className="inv-cell-label">Quantity</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      step={1}
-                      value={draft.quantityStr}
-                      onChange={e => updateDraft(row.slug, { quantityStr: e.target.value, status: "idle", message: null })}
-                      onBlur={() => void save(row)}
-                    />
-                    <span className="inv-cell-hint">0 = sold out on the website</span>
+                    <label className="inv-cell">
+                      <span className="inv-cell-label">Quantity</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={1}
+                        value={draft.quantityStr}
+                        aria-describedby={`inv-qty-hint-${row.slug}`}
+                        onChange={e => updateDraft(row.slug, { quantityStr: e.target.value, status: "idle", message: null })}
+                        onBlur={() => void save(row)}
+                      />
+                    </label>
+                    <span className="inv-cell-hint" id={`inv-qty-hint-${row.slug}`}>
+                      0 = sold out on the website
+                    </span>
                   </td>
                   <td>
-                    <span className="inv-cell-label">Notes (for you only — never shown on the site)</span>
-                    <input
-                      type="text"
-                      value={draft.notes}
-                      placeholder="For you only — never shown on the site"
-                      onChange={e => updateDraft(row.slug, { notes: e.target.value, status: "idle", message: null })}
-                      onBlur={() => void save(row)}
-                    />
+                    <label className="inv-cell">
+                      <span className="inv-cell-label">Notes (for you only — never shown on the site)</span>
+                      <input
+                        type="text"
+                        value={draft.notes}
+                        placeholder="For you only — never shown on the site"
+                        onChange={e => updateDraft(row.slug, { notes: e.target.value, status: "idle", message: null })}
+                        onBlur={() => void save(row)}
+                      />
+                    </label>
                   </td>
                   <td className="inventory-save-cell">
                     <button

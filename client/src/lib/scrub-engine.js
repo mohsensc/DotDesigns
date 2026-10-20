@@ -205,23 +205,33 @@ function mountScrollWorld(container, config) {
   const scrollbarFill = el('span'); scrollbar.appendChild(scrollbarFill);
 
   const topbar = el('div', 'sw-topbar');
+  // The bar is this page's site header. It sits alongside the copy layer (which
+  // carries role=main below), not inside it, so the banner stays top level.
+  topbar.setAttribute('role', 'banner');
   if (config.brand) {
     const brand = el('a', 'sw-brand'); brand.href = (config.brand.href || '#');
     brand.appendChild(el('span', 'sw-brand__mark'));
     const nm = el('span', 'sw-brand__name'); nm.textContent = config.brand.name || ''; brand.appendChild(nm);
     topbar.appendChild(brand);
   }
-  const nav = el('nav', 'sw-nav'); if (config.nav !== false) topbar.appendChild(nav);
+  const nav = el('nav', 'sw-nav'); nav.setAttribute('aria-label', 'Film sections');
+  if (config.nav !== false) topbar.appendChild(nav);
   if (config.cta && config.cta.label) {
     const c = el('a', 'sw-topcta'); c.href = config.cta.href || '#'; c.textContent = config.cta.label;
     if (/^\/(?!\/)/.test(c.getAttribute('href'))) c.setAttribute('data-sw-nav', '');
     topbar.appendChild(c);
   }
 
-  const stage = el('div', 'sw-stage');
+  // The scenes are silent footage and their posters are decorative (alt=""),
+  // so the whole stage is presentation. Hiding it here also keeps it out of the
+  // "content outside a landmark" reckoning.
+  const stage = el('div', 'sw-stage'); stage.setAttribute('aria-hidden', 'true');
   const copylayer = el('div', 'sw-copylayer');
+  // Everything a visitor is meant to read lives here: the scenes behind it are
+  // silent footage (aria-hidden, see loadClip) and the stills are decorative.
+  copylayer.setAttribute('role', 'main');
   const route = el('div', 'sw-route');
-  const hint = el('div', 'sw-hint');
+  const hint = el('div', 'sw-hint'); hint.setAttribute('aria-hidden', 'true');
   const hintText = el('span'); hintText.textContent = config.hint || 'scroll'; hint.appendChild(hintText);
   hint.appendChild(el('i'));
   const track = el('div', 'sw-track');
@@ -256,12 +266,18 @@ function mountScrollWorld(container, config) {
   const copies = [], intros = [], dots = [];
   SECTIONS.forEach((s, i) => {
     const c = el('article', 'sw-copy'); c.style.setProperty('--sw-accent', s.accent || '');
+    // Every block but the one on screen is invisible, so it must also be out of
+    // the tab order and out of the accessibility tree — otherwise a keyboard
+    // user lands on CTAs painted on nothing and a screen reader reads all five
+    // scenes as one wall of text. read() lifts inert from the live block.
+    c.setAttribute('inert', '');
     c.innerHTML = `<span class="sw-copy__num">${pad(i + 1)} / ${pad(N)}</span>` + copyHTML(s);
     copylayer.appendChild(c); copies.push(c);
 
     let ic = null;
     if (s.intro) {
       ic = el('article', 'sw-copy sw-copy--intro'); ic.style.setProperty('--sw-accent', s.accent || '');
+      ic.setAttribute('inert', '');
       ic.innerHTML = copyHTML(s.intro);
       copylayer.appendChild(ic);
     }
@@ -465,6 +481,14 @@ function mountScrollWorld(container, config) {
     ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(evt =>
       on(window, evt, cancelAutoScroll, { passive: true })
     );
+    // Someone reading at 400% zoom, or tabbing the chrome, may never wheel or
+    // tap — and they are exactly who the page moving under them hurts. A real
+    // cursor move or the first focus is intent enough to stop the tour.
+    // movementX/Y filters the synthetic mousemove a browser fires when the page
+    // scrolls under a stationary pointer, which would otherwise cancel the tour
+    // on its own first step.
+    on(window, 'mousemove', e => { if (e.movementX || e.movementY) cancelAutoScroll(); }, { passive: true });
+    on(window, 'focusin', cancelAutoScroll, { passive: true });
   }
 
   // ---- readiness accounting (drives the host page's loading gate) -----------
@@ -472,6 +496,18 @@ function mountScrollWorld(container, config) {
   // good. Failures still count so a single missing file can never wedge a page
   // that is waiting on onReady before it reveals itself.
   const clipSegs = SEGMENTS.filter(s => s.clip);
+  // A metered or slow connection. The clips are the heaviest thing this engine
+  // does — a full film is tens of megabytes — so on one of these we never run
+  // the second wave and let the proximity loader in read() fetch a scene only
+  // once the visitor is nearly on it. Safari has no navigator.connection, so
+  // this is false there and the film behaves as it always has. Fail open on
+  // purpose: guessing "slow" wrong costs the visitor the animation.
+  function thrifty() {
+    const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!c) return false;
+    if (c.saveData) return true;
+    return /^(slow-2g|2g|3g)$/.test(c.effectiveType || '');
+  }
   // GATE — how many clips the host's loading screen waits on. Default: all of
   // them. `preloadGate: n` (or `mobile.preloadGate`) waits on the first n and
   // streams the rest in behind the revealed page, which is the difference on a
@@ -482,16 +518,30 @@ function mountScrollWorld(container, config) {
     return n > 0 ? Math.min(n, clipSegs.length) : clipSegs.length;
   })();
   clipSegs.forEach((s, i) => { s._gated = i < GATE; });
-  let settledClips = 0, announcedReady = false;
+  let settledClips = 0, announcedReady = false, lastAheadFrom = -1;
   function announceReady() {
     if (announcedReady) return;
     announcedReady = true;
     armAutoScroll();
     if (config.onReady) { try { config.onReady(); } catch (e) {} }
-    // Second wave: everything the gate did not wait on, now that the visitor has
-    // the page. Ordered after onReady so it competes with nothing for the first
-    // scroll's bandwidth.
-    if (PRELOAD && GATE < clipSegs.length) clipSegs.forEach(s => { if (!s._gated) loadClip(s); });
+    // Second wave: only the first clip the gate did not wait on, now that the
+    // visitor has the page. Ordered after onReady so it competes with nothing
+    // for the first scroll's bandwidth. From here read() keeps one scene ahead
+    // of wherever the visitor is; a phone that never scrolls past the hall
+    // never downloads the studio. Most don't.
+    if (PRELOAD && GATE < clipSegs.length && !thrifty()) {
+      const first = clipSegs.find(s => !s._gated);
+      if (first) loadClip(first);
+    }
+  }
+  // The scene after the current one. Fetched as soon as the visitor lands on a
+  // scene, so it has a whole scene's worth of scrolling to arrive in, rather
+  // than the 1.6 screens the proximity loader below allows.
+  function loadAhead(ci) {
+    if (!PRELOAD || thrifty()) return;
+    for (let i = ci + 1; i < NSEG; i++) {
+      if (SEGMENTS[i].clip) { loadClip(SEGMENTS[i]); return; }
+    }
   }
   // Only the initial load moves the bar. A variant switch reloads every clip, and
   // counting those would push the host's progress past 100%.
@@ -540,7 +590,9 @@ function mountScrollWorld(container, config) {
     // Serve the lighter mobile encode on phones when one was provided.
     const url = clipOf(s);
     s.loadedUrl = url;
-    fetchClip(url)
+    // Returned so the second wave can start the next clip when this one's bytes
+    // are down; every other caller ignores it.
+    return fetchClip(url)
       .then(blob => {
         // A breakpoint crossing while this fetch was in flight already asked for
         // the other variant. Drop this one on the floor rather than attaching a
@@ -549,6 +601,9 @@ function mountScrollWorld(container, config) {
         const v = document.createElement('video');
         v.className = 'sw-scene__video';
         v.muted = true; v.playsInline = true; v.preload = 'auto';
+        // Decorative, like the stills' alt="": silent footage of a scene the
+        // copy block already describes. Also clears axe's caption check.
+        v.setAttribute('aria-hidden', 'true');
         v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
         v.src = URL.createObjectURL(blob);
         v.addEventListener('loadedmetadata', () => {
@@ -621,7 +676,10 @@ function mountScrollWorld(container, config) {
     // The lerp would otherwise spend a second catching up from the old variant's
     // normalised time; the picture is meant to be the same frame, so start there.
     SEGMENTS.forEach(s => { s.cur = s.target; });
-    if (PRELOAD) SEGMENTS.forEach(loadClip);
+    // Same rule as the second wave: on a metered connection the read() below
+    // pulls in the scenes near the camera and leaves the rest to the proximity
+    // loader, rather than re-fetching the whole film in the other variant.
+    if (PRELOAD && !thrifty()) SEGMENTS.forEach(loadClip);
     read();
   }
 
@@ -636,10 +694,14 @@ function mountScrollWorld(container, config) {
     const fade = CROSSFADE * vh;
     let ci = 0;
     for (let i = 0; i < NSEG; i++) if (y >= SEGMENTS[i].start) ci = i;
+    if (ci !== lastAheadFrom) { lastAheadFrom = ci; loadAhead(ci); }
 
     for (let i = 0; i < NSEG; i++) {
       const s = SEGMENTS[i];
-      if (!PRELOAD && y > s.start - 1.6 * vh && y < s.end + 1.6 * vh) loadClip(s);
+      // Unconditional: loadClip no-ops on a clip already in flight, so with
+      // PRELOAD this only catches a scene loadAhead hasn't finished — or, on a
+      // thrifty connection, every scene but the gated ones.
+      if (y > s.start - 1.6 * vh && y < s.end + 1.6 * vh) loadClip(s);
       const local = clamp((y - s.start) / (s.end - s.start), 0, 1);
       const flight = segProgress(s, local);
       s.target = flight;
@@ -705,8 +767,10 @@ function mountScrollWorld(container, config) {
       // one stop to the next, which is exactly what the top anchor is for.
       const shift = reduce ? '0vh' : ((0.5 - pr) * 1.5).toFixed(3) + 'vh';
       if (shift !== c._shift) { c.style.setProperty('--sw-shift', shift); c._shift = shift; }
-      const pe = cop > 0.5 ? 'auto' : 'none';
+      const live = cop > 0.5;
+      const pe = live ? 'auto' : 'none';
       if (pe !== c._pe) { c.style.pointerEvents = pe; c._pe = pe; }
+      if (live !== c._live) { c.toggleAttribute('inert', !live); c._live = live; }
 
       const ic = intros[i];
       if (ic) {
@@ -714,8 +778,10 @@ function mountScrollWorld(container, config) {
         if (icop !== ic._cop) { ic.style.opacity = icop; ic._cop = icop; }
         const ish = reduce ? '0vh' : (-pr * 2).toFixed(3) + 'vh';
         if (ish !== ic._shift) { ic.style.setProperty('--sw-shift', ish); ic._shift = ish; }
-        const ipe = icop > 0.5 ? 'auto' : 'none';
+        const ilive = icop > 0.5;
+        const ipe = ilive ? 'auto' : 'none';
         if (ipe !== ic._pe) { ic.style.pointerEvents = ipe; ic._pe = ipe; }
+        if (ilive !== ic._live) { ic.toggleAttribute('inert', !ilive); ic._live = ilive; }
       }
     }
 
@@ -725,7 +791,11 @@ function mountScrollWorld(container, config) {
     if (near !== activeIndex) {
       activeIndex = near;
       dots.forEach((d, k) => d.classList.toggle('is-active', k === near));
-      nav.querySelectorAll('.sw-nav__item').forEach((n, k) => n.classList.toggle('is-active', k === near));
+      nav.querySelectorAll('.sw-nav__item').forEach((n, k) => {
+        n.classList.toggle('is-active', k === near);
+        // The class is colour only; aria-current is the half a screen reader hears.
+        if (k === near) n.setAttribute('aria-current', 'true'); else n.removeAttribute('aria-current');
+      });
       container.style.setProperty('--sw-accent', SECTIONS[near].accent || '');
     }
     if (SHOW_PROGRESS) scrollbarFill.style.transform = `scaleX(${clamp(y / (totalW * vh))})`;
@@ -1083,6 +1153,14 @@ function injectCSS() {
     .sw-copy__title{font-size:clamp(1.4rem,4.4vh,1.9rem);}
     .sw-copy__body{font-size:.92rem;margin-top:8px;}
     .sw-copy__cta{margin-top:12px;} .sw-hint{display:none;}
+  }
+  /* The 44px floor belongs to the pointer, not the viewport: an iPad in
+     landscape and a touchscreen laptop are both well past 860px and still get a
+     thumb. The mobile block above sets the same floor for a narrow window with a
+     mouse, where the pills are packed into a swipeable row. */
+  @media (pointer:coarse){
+    .sw-nav__item{min-height:44px;}
+    .sw-topcta{display:inline-flex;align-items:center;min-height:44px;}
   }
   /* Touch: give the route dots a finger-sized hit area without growing the visible dot. */
   @media (hover:none) and (pointer:coarse){

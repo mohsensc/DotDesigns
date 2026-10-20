@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getRow, isSoldOut } from "./_lib/inventory";
+import { randomUUID } from "node:crypto";
+import { readCatalog } from "./_lib/catalog";
+import { HOLD_MS, getRow, holdPiece, isConfigured, isSoldOut, releaseHold } from "./_lib/inventory";
 
 // Starts a Stripe Checkout session for a single piece. The inventory store is
 // the only source of price and stock — nothing the client sends is trusted,
@@ -9,20 +11,31 @@ import { getRow, isSoldOut } from "./_lib/inventory";
 const STRIPE_SESSIONS_URL = "https://api.stripe.com/v1/checkout/sessions";
 const DEFAULT_ORIGIN = "https://dotdesigns.art";
 
-function readSlug(req: VercelRequest): string {
+const HOLD_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+const MIN_AMOUNT_CENTS = 50;
+
+function readBody(req: VercelRequest): { slug?: unknown; holdId?: unknown } {
   const body = req.body;
-  if (body && typeof body === "object" && typeof (body as { slug?: unknown }).slug === "string") {
-    return (body as { slug: string }).slug.trim();
-  }
+  if (body && typeof body === "object") return body as { slug?: unknown; holdId?: unknown };
   if (typeof body === "string" && body.length > 0) {
     try {
-      const parsed = JSON.parse(body) as { slug?: unknown };
-      if (typeof parsed.slug === "string") return parsed.slug.trim();
+      const parsed = JSON.parse(body);
+      if (parsed && typeof parsed === "object") return parsed as { slug?: unknown; holdId?: unknown };
     } catch {
       // not JSON — fall through to empty
     }
   }
-  return "";
+  return {};
+}
+
+function readSlug(req: VercelRequest): string {
+  const { slug } = readBody(req);
+  return typeof slug === "string" ? slug.trim() : "";
+}
+
+function readHoldId(req: VercelRequest): string {
+  const { holdId } = readBody(req);
+  return typeof holdId === "string" && HOLD_ID_PATTERN.test(holdId) ? holdId : randomUUID();
 }
 
 /**
@@ -68,9 +81,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  if (!isConfigured()) {
+    res.status(503).json({ error: "The stock ledger isn't available right now." });
+    return;
+  }
+
   let row;
+  let listed;
   try {
-    row = await getRow(slug);
+    [row, listed] = await Promise.all([
+      getRow(slug),
+      readCatalog().then(catalog => catalog.pieces.find(piece => piece.slug === slug)),
+    ]);
   } catch {
     res.status(502).json({ error: "Couldn't reach the inventory. Please try again." });
     return;
@@ -84,30 +106,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(409).json({ error: "That piece is sold out." });
     return;
   }
-  if (row.price === null) {
+  if (listed && listed.status !== "available") {
+    res.status(409).json({ error: "That piece isn't available right now." });
+    return;
+  }
+  const amountCents = row.price === null ? 0 : Math.round(row.price * 100);
+  if (row.price === null || amountCents < MIN_AMOUNT_CENTS) {
     res.status(409).json({ error: "That piece isn't set up for checkout." });
     return;
   }
 
+  const holdId = readHoldId(req);
+  let hold;
+  try {
+    hold = await holdPiece(slug, holdId);
+  } catch {
+    res.status(502).json({ error: "Couldn't reach the inventory. Please try again." });
+    return;
+  }
+  if (hold === "soldOut") {
+    res.status(409).json({ error: "That piece is sold out." });
+    return;
+  }
+  if (hold === "busy") {
+    res.status(409).json({ error: "Someone is checking out this piece right now. Try again in a few minutes." });
+    return;
+  }
+
   const origin = originOf(req);
-  const amountCents = Math.round(row.price * 100);
-  // Deterministic within the same minute bucket as the Idempotency-Key below.
-  // A random value here would change the request body while the key stayed the
-  // same, and Stripe rejects a reused key whose payload differs — so the second
-  // click would error instead of collapsing into the first session.
-  const bucket = Math.floor(Date.now() / 60_000);
-  const clientReferenceId = `${slug}-${bucket}`;
 
   const params = new URLSearchParams();
   params.set("mode", "payment");
   params.set("success_url", `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`);
   params.set("cancel_url", `${origin}/checkout/cancelled`);
-  params.set("client_reference_id", clientReferenceId);
+  params.set("client_reference_id", holdId);
+  params.set("expires_at", String(Math.floor((Date.now() + HOLD_MS - 60_000) / 1000)));
   params.set("line_items[0][quantity]", "1");
   params.set("line_items[0][price_data][currency]", "cad");
   params.set("line_items[0][price_data][unit_amount]", String(amountCents));
   params.set("line_items[0][price_data][product_data][name]", row.title || slug);
   params.set("metadata[slug]", slug);
+  params.set("metadata[holdId]", holdId);
+
+  async function fail() {
+    await releaseHold(slug, holdId).catch(() => undefined);
+    res.status(502).json({ error: "Couldn't start checkout. Please try again." });
+  }
 
   try {
     const stripeRes = await fetch(STRIPE_SESSIONS_URL, {
@@ -115,28 +159,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       headers: {
         Authorization: `Bearer ${secretKey}`,
         "Content-Type": "application/x-www-form-urlencoded",
-        // Two clicks on the same piece within a minute reuse the session
-        // instead of opening two. A genuine second purchase of the same
-        // one-off piece inside that window is rare enough to accept.
-        "Idempotency-Key": `checkout-${slug}-${bucket}`,
       },
       body: params.toString(),
     });
 
     if (!stripeRes.ok) {
-      // Never forward Stripe's response body — it can carry account detail.
-      res.status(502).json({ error: "Couldn't start checkout. Please try again." });
+      await fail();
       return;
     }
 
     const json = (await stripeRes.json()) as { url?: string };
     if (!json.url) {
-      res.status(502).json({ error: "Couldn't start checkout. Please try again." });
+      await fail();
       return;
     }
 
     res.status(200).json({ url: json.url });
   } catch {
-    res.status(502).json({ error: "Couldn't start checkout. Please try again." });
+    await fail();
   }
 }

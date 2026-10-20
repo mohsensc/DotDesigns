@@ -10,8 +10,13 @@
   --studio-ink: #2a2622;
   --studio-ink-soft: #6b6459;
   --studio-line: #e4dfd7;
-  --studio-accent: #a8752f;
+  /* Anything that carries text. Dark enough to clear 4.5:1 on white and on
+     the page ground. */
+  --studio-accent: #8a5f24;
   --studio-accent-ink: #ffffff;
+  /* The lighter gold, for shapes only — rings, borders, the progress bar. */
+  --studio-accent-soft: #a8752f;
+  --studio-reserved-ink: #6f5525;
   --studio-danger: #b3432f;
   --studio-radius: 10px;
   --tab-height: 56px;
@@ -59,7 +64,7 @@ textarea {
 }
 
 :focus-visible {
-  outline: 2px solid var(--studio-accent);
+  outline: 2px solid var(--studio-accent-soft);
   outline-offset: 2px;
 }
 
@@ -143,6 +148,11 @@ textarea {
   cursor: pointer;
 }
 
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .header-action {
   min-height: 44px;
   padding: 0 8px;
@@ -184,6 +194,13 @@ textarea {
 .banner-error {
   color: var(--studio-danger);
   margin: 0;
+}
+
+.load-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 /* ---- tab bar ---- */
@@ -278,7 +295,41 @@ textarea {
 }
 
 .tile-badge-reserved {
-  color: #8a6c30;
+  color: var(--studio-reserved-ink);
+}
+
+.reorder-note {
+  margin: 0 0 12px;
+  color: var(--studio-ink-soft);
+}
+
+/* Reorder mode. The tile stops being a button so it can hold two of them. */
+.home-tile-static {
+  cursor: default;
+}
+
+.tile-move {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.tile-move-btn {
+  flex: 1;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--studio-ink);
+  cursor: pointer;
+}
+
+.tile-move-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 /* ---- piece screen ---- */
@@ -394,7 +445,7 @@ textarea {
 
 .status-reserved {
   background: #eee6d8;
-  color: #8a6c30;
+  color: var(--studio-reserved-ink);
 }
 
 .status-draft {
@@ -477,22 +528,78 @@ textarea {
   gap: 8px;
 }
 
-/* Picked photos read left to right, like the roll they came from. */
-.strip {
+.file-notes li,
+.media-undo {
   display: flex;
   gap: 10px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
-  padding-bottom: 4px;
+  align-items: flex-start;
 }
 
-.strip-item {
-  flex: 0 0 148px;
+.file-notes li span,
+.media-undo span {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-notes li .btn,
+.media-undo .btn {
+  flex: 0 0 auto;
+}
+
+/* Took a photo out — say so, and give her a beat to change her mind. */
+.media-undo {
+  flex-direction: row;
+  align-items: center;
+}
+
+/* One row per picked photo/video, stacked down the page. */
+.media-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.media-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.media-row-body {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  scroll-snap-align: start;
+}
+
+.media-row .strip-thumb {
+  flex: 0 0 96px;
+  width: 96px;
+}
+
+.media-row .strip-thumb-cover {
+  border-color: var(--studio-accent-soft);
+}
+
+/* Sits on its own corner of the thumb, clear of the Make cover tap target. */
+.media-remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(30, 26, 20, 0.72);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .strip-thumb {
@@ -502,10 +609,6 @@ textarea {
   overflow: hidden;
   background: var(--studio-line);
   border: 2px solid transparent;
-}
-
-.strip-item-cover .strip-thumb {
-  border-color: var(--studio-accent);
 }
 
 .strip-thumb img,
@@ -535,6 +638,12 @@ textarea {
 
 .strip-actions .btn {
   flex: 1;
+}
+
+.media-tally,
+.media-position {
+  margin: 0;
+  font-size: 14px;
 }
 
 .caption-list {
@@ -698,6 +807,10 @@ textarea {
   margin: 0 0 8px;
 }
 
+.cancel-publish {
+  margin-top: 10px;
+}
+
 .progress {
   height: 6px;
   border-radius: 999px;
@@ -707,7 +820,7 @@ textarea {
 
 .progress-fill {
   height: 100%;
-  background: var(--studio-accent);
+  background: var(--studio-accent-soft);
   transition: width 0.2s linear;
 }
 
@@ -730,10 +843,28 @@ textarea {
   color: #fff;
   font-size: 15px;
   z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .toast-error {
   background: var(--studio-danger);
+}
+
+.toast-dismiss {
+  flex-shrink: 0;
+  margin: -12px -8px -12px auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
 }
 
 /* ---- lock screen ---- */
@@ -791,6 +922,22 @@ textarea {
 .lock-submit {
   width: 100%;
   margin-top: 16px;
+}
+
+/* Mohsen's way in. Looks like a link, sized like every other target here. */
+.lock-plain-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  margin-left: -12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  color: var(--studio-accent);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 /* ---- action sheet ---- */
@@ -937,6 +1084,10 @@ textarea {
 .inventory-title {
   font-weight: 600;
   font-size: 17px;
+}
+
+.inv-cell {
+  display: block;
 }
 
 .inv-cell-label {

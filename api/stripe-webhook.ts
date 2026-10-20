@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { decrementQuantity } from "./_lib/inventory";
+import { recordSale, releaseHold } from "./_lib/inventory";
 
 // Stripe calls this when a checkout finishes. Verifying the signature is the
 // whole security model here — an unverified POST to this URL is a free way
@@ -61,8 +61,9 @@ function verifySignature(rawBody: Buffer, header: string, secret: string): boole
 }
 
 type StripeEvent = {
+  id?: string;
   type?: string;
-  data?: { object?: { payment_status?: string; metadata?: { slug?: string } } };
+  data?: { object?: { id?: string; payment_status?: string; metadata?: { slug?: string; holdId?: string } } };
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -100,17 +101,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Two events can mean "this piece sold", and both have to be registered in
-  // Stripe or stock silently stops moving:
-  //   completed              — the normal card case, already paid on arrival
-  //   async_payment_succeeded — a delayed method that cleared afterwards
-  // Listening only to `completed` while also (correctly) refusing to act on
-  // unpaid sessions would mean an async sale never decrements at all.
+  if (event.type === "checkout.session.expired") {
+    const expiredSlug = event.data?.object?.metadata?.slug;
+    const expiredHold = event.data?.object?.metadata?.holdId;
+    if (expiredSlug && expiredHold) {
+      try {
+        await releaseHold(expiredSlug, expiredHold);
+      } catch (err) {
+        console.error(`stripe-webhook: failed to release hold for slug "${expiredSlug}"`, err);
+        res.status(500).json({ error: "could not release stock" });
+        return;
+      }
+    }
+    res.status(200).json({ ok: true });
+    return;
+  }
+
   if (
     event.type !== "checkout.session.completed" &&
     event.type !== "checkout.session.async_payment_succeeded"
   ) {
-    // Not a sale — ack it so Stripe stops retrying, do nothing else.
     res.status(200).json({ ok: true });
     return;
   }
@@ -127,24 +137,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const slug = event.data?.object?.metadata?.slug;
+  const holdId = event.data?.object?.metadata?.holdId ?? "";
+  const saleId = event.data?.object?.id ?? event.id ?? "";
 
-  // The write happens before we respond — a serverless function can be
-  // frozen the instant the response is sent, so "fire and forget" after
-  // res.json() risks the decrement never running at all. Either way we
-  // always answer 200 once the signature's verified: Stripe retries this
-  // webhook on anything else, and a retry storm is worse than one write we
-  // log and move on from. There's no event-id dedupe table here, so a
-  // genuine Stripe retry of the same completed session can decrement stock
-  // twice. Acceptable at this scale: the decrement itself is atomic, so
-  // stock can't go negative, it just undercounts by one on a duplicate.
   if (slug) {
     try {
-      await decrementQuantity(slug, 1);
+      const sale = await recordSale(slug, saleId, holdId);
+      if (sale === "oversold") {
+        console.error(
+          `stripe-webhook: paid for slug "${slug}" (session ${saleId}) but none was left in stock. Refund this buyer.`,
+        );
+      }
     } catch (err) {
-      // Sheet write failed after payment succeeded. Stripe already has its
-      // money and won't retry a 200, so this has to be caught some other way —
-      // surface it loudly server-side with no payment detail attached.
-      console.error(`stripe-webhook: failed to decrement stock for slug "${slug}"`, err);
+      console.error(`stripe-webhook: failed to record sale for slug "${slug}"`, err);
+      res.status(500).json({ error: "could not update stock" });
+      return;
     }
   }
 

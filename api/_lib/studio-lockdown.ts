@@ -11,6 +11,9 @@ import { STUDIO_COOKIE_NAME, readCookie, verifyStudioToken } from "./studio-sess
 /** Keys for the wrong-password lockdown. See LOCKDOWN below. */
 const FAILS_KEY = "studio:auth:fails";
 const LOCKDOWN_KEY = "studio:lockdown";
+const UNLOCK_FAILS_KEY = "studio:unlock:fails";
+const MAX_UNLOCK_FAILS = 5;
+const UNLOCK_WINDOW_S = 15 * 60;
 export const MAX_FAILS = 5;
 /** Wrong guesses only add up inside this window. Typos a week apart don't. */
 const FAILS_WINDOW_S = 60 * 60;
@@ -69,11 +72,31 @@ export async function clearFailures(): Promise<void> {
   }
 }
 
+export async function unlockAttemptsExhausted(): Promise<boolean> {
+  if (!isConfigured()) return false;
+  try {
+    return Number(await command<string | null>(["GET", UNLOCK_FAILS_KEY])) >= MAX_UNLOCK_FAILS;
+  } catch {
+    return false;
+  }
+}
+
+export async function noteWrongUnlock(): Promise<void> {
+  if (!isConfigured()) return;
+  try {
+    const fails = Number(await command<number>(["INCR", UNLOCK_FAILS_KEY]));
+    if (fails === 1) await command(["EXPIRE", UNLOCK_FAILS_KEY, UNLOCK_WINDOW_S]);
+  } catch {
+    return;
+  }
+}
+
 /** The unlock code's whole job. */
 export async function liftLockdown(): Promise<void> {
   if (!isConfigured()) return;
   await command(["DEL", LOCKDOWN_KEY]);
   await command(["DEL", FAILS_KEY]);
+  await command(["DEL", UNLOCK_FAILS_KEY]);
 }
 
 /**

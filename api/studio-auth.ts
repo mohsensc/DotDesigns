@@ -1,5 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { clearFailures, isLockedDown, liftLockdown, noteWrongPassword } from "./_lib/studio-lockdown";
+import {
+  clearFailures,
+  isLockedDown,
+  liftLockdown,
+  noteWrongPassword,
+  noteWrongUnlock,
+  unlockAttemptsExhausted,
+} from "./_lib/studio-lockdown";
 import {
   STUDIO_COOKIE_NAME,
   issueStudioToken,
@@ -47,6 +54,7 @@ function bodyField(req: VercelRequest, field: "password" | "unlock"): string {
 
 function wantsLogout(req: VercelRequest): boolean {
   if (req.method === "DELETE") return true;
+  if (req.method !== "POST") return false;
   const raw = req.query.logout;
   return !!(Array.isArray(raw) ? raw[0] : raw);
 }
@@ -63,9 +71,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const unlockCode = req.method === "POST" ? bodyField(req, "unlock") : "";
   if (unlockCode) {
     const secret = process.env.UNLOCK_SECRET;
-    // A wrong code doesn't count against the password counter — it isn't a
-    // password guess, and guessing this one shouldn't deepen the hole.
+    if (await unlockAttemptsExhausted()) {
+      res.status(429).json({ error: "Too many tries. Wait a few minutes." });
+      return;
+    }
     if (!secret || !safeEqual(unlockCode, secret)) {
+      await noteWrongUnlock();
       res.status(401).json({ error: "Wrong code." });
       return;
     }

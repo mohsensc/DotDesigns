@@ -14,11 +14,14 @@ export default function PieceCard({ piece, eager }: { piece: Piece; eager?: bool
   const cover = coverOf(piece);
   const src = cover ? resolveMedia(cover) : "";
   const [stock, setStock] = useState<StockEntry | undefined>(undefined);
+  const [ledgerDown, setLedgerDown] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     loadInventory().then(inventory => {
-      if (!cancelled) setStock(inventory[piece.slug]);
+      if (cancelled) return;
+      setStock(inventory.pieces[piece.slug]);
+      setLedgerDown(inventory.unavailable);
     });
     return () => {
       cancelled = true;
@@ -28,7 +31,8 @@ export default function PieceCard({ piece, eager }: { piece: Piece; eager?: bool
   // The sheet is the live stock number — it wins over the catalog's own
   // status whenever both are present. Only fall back to the catalog's status
   // when there's no sheet entry for this slug at all.
-  const sold = stock ? stock.soldOut : piece.status !== "available";
+  const notForSale = piece.status !== "available";
+  const sold = stock ? stock.soldOut || notForSale : notForSale;
   const statusLabel = stock?.soldOut ? "Sold" : STATUS_LABELS[piece.status];
   const price = stock?.price ?? piece.price;
   const lowStock = !!stock && !stock.soldOut && stock.quantity > 0 && stock.quantity <= 2;
@@ -94,6 +98,10 @@ export default function PieceCard({ piece, eager }: { piece: Piece; eager?: bool
         {lowStock && (
           <p className="piece-card__low-stock">{stock!.quantity === 1 ? "Last one" : `${stock!.quantity} left`}</p>
         )}
+        {/* The ledger is unreadable, so the catalog price above is all we have
+            and no piece can be bought. Say so rather than let the card read as
+            a normal listing. */}
+        {ledgerDown && !sold && price != null && <p className="piece-card__low-stock">Checkout unavailable · ask to buy</p>}
       </div>
     </Link>
   );

@@ -261,9 +261,45 @@
   color: var(--dot-ink-soft);
 }
 
-.request__fallback a,
-.request__preview-hint a {
+.request__fallback a {
   color: var(--dot-accent);
+}
+
+.request__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--dot-accent) 8%, transparent);
+}
+
+.request__summary:focus {
+  outline: 2px solid var(--dot-accent);
+  outline-offset: 3px;
+}
+
+.request__summary-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--dot-ink);
+}
+
+.request__summary-list {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--dot-ink-soft);
+}
+
+.request__summary-list a {
+  color: var(--dot-accent);
+  text-decoration: underline;
 }
 
 /* Honeypot — offscreen, not display:none, since some bots skip that. */
@@ -295,22 +331,21 @@
   color: var(--dot-accent);
 }
 
+.request__preview-empty {
+  margin: 0;
+  color: var(--dot-ink-soft);
+  font-size: 0.9rem;
+}
+
 .request__preview-body {
   margin: 0;
+  max-width: 62ch;
   font-family: ui-monospace, Menlo, monospace;
   font-size: 0.78rem;
   line-height: 1.75;
   color: var(--dot-ink-soft);
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.request__preview-hint {
-  margin: 0;
-  font-size: 0.78rem;
-  font-weight: 300;
-  line-height: 1.6;
-  color: color-mix(in srgb, var(--dot-ink-soft) 80%, transparent);
 }
 
 @media (min-width: 700px) {

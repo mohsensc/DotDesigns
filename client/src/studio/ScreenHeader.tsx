@@ -2,6 +2,8 @@ type Props = {
   title: string;
   onBack?: () => void;
   backLabel?: string;
+  /** Greyed out while something is in flight that leaving would break. */
+  backDisabled?: boolean;
   action?: { label: string; onClick: () => void; disabled?: boolean };
   /** Sits on the right when there's no action — the "…" button on a piece. */
   extra?: React.ReactNode;
@@ -9,12 +11,25 @@ type Props = {
 
 // Same bar on every screen: back on the left, where she is in the middle,
 // the one thing to do next on the right.
-export default function ScreenHeader({ title, onBack, backLabel = "Back", action, extra }: Props) {
+export default function ScreenHeader({
+  title,
+  onBack,
+  backLabel = "Back",
+  backDisabled,
+  action,
+  extra,
+}: Props) {
   return (
     <header className="screen-header">
       <div className="screen-header-side">
         {onBack && (
-          <button type="button" className="icon-btn" onClick={onBack} aria-label={backLabel}>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={onBack}
+            disabled={backDisabled}
+            aria-label={backLabel}
+          >
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
               <path
                 d="M15 5 8 12l7 7"
