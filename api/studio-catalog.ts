@@ -9,7 +9,13 @@ import {
   sanitisePiece,
   upsertPiece as upsertInCatalog,
 } from "./_lib/catalog-shape";
-import { parseAmount, removePiece as removeInventoryRow, upsertPiece as upsertInventoryRow } from "./_lib/inventory";
+import {
+  MIN_PRICE,
+  parseAmount,
+  readQuantityIntent,
+  removePiece as removeInventoryRow,
+  upsertPiece as upsertInventoryRow,
+} from "./_lib/inventory";
 import { requireUnlocked } from "./_lib/studio-lockdown";
 
 // The studio's only door onto the live catalog.
@@ -102,14 +108,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           res.status(400).json({ error: "That price isn't a plain number. Try something like 1200." });
           return;
         }
+        if (price < MIN_PRICE) {
+          res.status(400).json({ error: "Prices start at 0.50. Leave it blank for price on request." });
+          return;
+        }
       }
       const piece = sanitisePiece({ ...raw, price }, existing);
 
-      const quantity = parseAmount(body.quantity);
-      if (quantity === null || !Number.isInteger(quantity)) {
+      const intent = readQuantityIntent(body);
+      if (!intent.ok || (!existing && (body.quantity === undefined || body.quantity === null || body.quantity === ""))) {
         res.status(400).json({ error: "How many? A whole number, 0 or more." });
         return;
       }
+      const renamedFrom = existing && existing.slug !== piece.slug ? existing.slug : undefined;
 
       const next = upsertInCatalog(catalog, piece);
       const write = await writeCatalog(next, expected);
@@ -121,16 +132,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // The catalog is what the shop reads; the inventory row is what the
       // checkout charges against. Both get written on one tap so they can't
       // disagree about a piece she just edited.
-      await upsertInventoryRow({
-        slug: piece.slug,
-        title: piece.title,
-        price: piece.price,
-        quantity,
-        notes: asString(body.notes),
-      });
+      const stockKept = await upsertInventoryRow(
+        {
+          slug: piece.slug,
+          title: piece.title,
+          price: piece.price,
+          quantity: intent.quantity,
+          notes: asString(body.notes),
+        },
+        { expected: intent.expected, fromSlug: renamedFrom },
+      );
       // A rename leaves the old row behind. Clear it so the shop can't buy a
       // piece at an address that no longer exists.
-      if (existing && existing.slug !== piece.slug) await removeInventoryRow(existing.slug);
+      if (renamedFrom) await removeInventoryRow(renamedFrom);
+
+      if (!stockKept) {
+        res.status(409).json({
+          error: "The stock count changed while you were editing, so it was left as it is. Check it and try again.",
+          catalog: write.catalog,
+        });
+        return;
+      }
 
       res.status(200).json({ catalog: write.catalog });
       return;

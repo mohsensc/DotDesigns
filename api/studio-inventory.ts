@@ -3,10 +3,14 @@ import {
   getInventory,
   getRow,
   isConfigured,
+  MIN_PRICE,
   parseAmount,
+  readQuantityIntent,
   removePiece,
   upsertPiece,
 } from "./_lib/inventory";
+import { readCatalog, writeCatalog } from "./_lib/catalog";
+import { upsertPiece as upsertInCatalog } from "./_lib/catalog-shape";
 import { requireUnlocked } from "./_lib/studio-lockdown";
 
 // The studio's inventory table talks to this.
@@ -25,6 +29,7 @@ type Body = {
   title?: unknown;
   price?: unknown;
   quantity?: unknown;
+  expectedQuantity?: unknown;
   notes?: unknown;
 };
 
@@ -40,6 +45,17 @@ function parseBody(req: VercelRequest): Body {
     }
   }
   return {};
+}
+
+async function syncCatalogPrice(slug: string, price: number | null): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const catalog = await readCatalog();
+    const listed = catalog.pieces.find(p => p.slug === slug);
+    if (!listed || listed.price === price) return;
+    const write = await writeCatalog(upsertInCatalog(catalog, { ...listed, price }), catalog.updatedAt);
+    if (write.ok) return;
+  }
+  throw new Error("Catalog price could not be updated.");
 }
 
 const asString = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -119,15 +135,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(400).json({ error: "That price isn't a plain number. Try something like 1200." });
         return;
       }
+      if (price < MIN_PRICE) {
+        res.status(400).json({ error: "Prices start at 0.50. Leave it blank for not for sale." });
+        return;
+      }
     }
 
-    const quantity = parseAmount(body.quantity);
-    if (quantity === null || !Number.isInteger(quantity)) {
+    const intent = readQuantityIntent(body);
+    if (!intent.ok || body.quantity === undefined || body.quantity === null || body.quantity === "") {
       res.status(400).json({ error: "How many? A whole number, 0 or more." });
       return;
     }
 
-    await upsertPiece({ slug, title, price, quantity, notes });
+    const applied = await upsertPiece(
+      { slug, title, price, quantity: intent.quantity, notes },
+      { expected: intent.expected },
+    );
+    await syncCatalogPrice(slug, price);
+    if (!applied) {
+      res.status(409).json({ error: "The stock count changed while you were looking. Refresh and try again." });
+      return;
+    }
     res.status(200).json({ ok: true });
   } catch {
     res.status(502).json({ error: "Couldn't reach your inventory. Try again in a moment." });

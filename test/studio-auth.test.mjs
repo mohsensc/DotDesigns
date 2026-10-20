@@ -41,6 +41,7 @@ test.beforeEach(async () => {
   process.env.UNLOCK_SECRET = SECRET;
   await redis.command(["DEL", "studio:lockdown"]);
   await redis.command(["DEL", "studio:auth:fails"]);
+  await redis.command(["DEL", "studio:unlock:fails"]);
 });
 
 test("the right password signs in and sets a cookie", async () => {
@@ -151,4 +152,20 @@ test("logout clears the cookie even while locked", async () => {
   const res = await run({ method: "POST", query: { logout: "1" } });
   assert.equal(res.statusCode, 200);
   assert.match(String(res.headers["Set-Cookie"]), /Max-Age=0/);
+});
+
+test("five wrong unlock codes shut the unlock door, even to the right code", async () => {
+  for (let i = 0; i < 5; i++) await login("nope");
+  for (let i = 0; i < 5; i++) {
+    const res = await run({ method: "POST", body: { unlock: `guess-${i}` } });
+    assert.equal(res.statusCode, 401);
+  }
+  const right = await run({ method: "POST", body: { unlock: SECRET } });
+  assert.equal(right.statusCode, 429);
+  assert.equal((await run({ method: "GET" })).body.lockdown, true);
+});
+
+test("logout over a plain GET does nothing", async () => {
+  const res = await run({ method: "GET", query: { logout: "1" } });
+  assert.equal(res.headers["Set-Cookie"], undefined);
 });
