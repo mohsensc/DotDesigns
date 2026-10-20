@@ -146,6 +146,15 @@ test("a hold that ran out frees the piece without any webhook", async () => {
   assert.equal(await inv.holdPiece(slug, "fresh-buyer-1"), "held");
 });
 
+test("a buyer retrying near the end of their hold gets a fresh window", async () => {
+  const slug = await seed(1);
+  const start = Date.now();
+  assert.equal(await inv.holdPiece(slug, "returning-1", start), "held");
+  const retry = start + inv.HOLD_MS - 60_000;
+  assert.equal(await inv.holdPiece(slug, "returning-1", retry), "held");
+  assert.equal(await inv.holdPiece(slug, "someone-else", start + inv.HOLD_MS + 1000), "busy");
+});
+
 test("an expired session frees the piece", async () => {
   const slug = await seed(1);
   const { stripe, cleanup } = await withStripe();

@@ -61,7 +61,10 @@ export function startFakeRedis() {
           const members = sorted.get(keys[1]) ?? new Map();
           sorted.set(keys[1], members);
           for (const [member, score] of members) if (score <= Number(argv[1])) members.delete(member);
-          if (members.has(argv[0])) return 1;
+          if (members.has(argv[0])) {
+            members.set(argv[0], Number(argv[2]));
+            return 1;
+          }
           const stock = Number(strings.get(keys[0]) ?? "0");
           if (stock < 1) return -1;
           if (stock - members.size < 1) return 0;

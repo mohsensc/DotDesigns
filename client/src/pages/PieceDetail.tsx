@@ -29,6 +29,19 @@ function newHoldId(): string {
   }
 }
 
+function holdIdFor(slug: string): string {
+  const storageKey = `dd:hold:${slug}`;
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved && /^[A-Za-z0-9_-]{8,64}$/.test(saved)) return saved;
+    const fresh = newHoldId();
+    localStorage.setItem(storageKey, fresh);
+    return fresh;
+  } catch {
+    return newHoldId();
+  }
+}
+
 export default function PieceDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -40,7 +53,6 @@ export default function PieceDetail() {
   const [stock, setStock] = useState<StockEntry | undefined>(undefined);
   const [ledgerDown, setLedgerDown] = useState(false);
   const [inventoryPending, setInventoryPending] = useState(true);
-  const holdId = useRef(newHoldId());
   const loadingRef = useRef<HTMLParagraphElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -225,7 +237,7 @@ export default function PieceDetail() {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug: piece.slug, holdId: holdId.current }),
+        body: JSON.stringify({ slug: piece.slug, holdId: holdIdFor(piece.slug) }),
       });
       const body = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
       if (!res.ok || !body?.url) {

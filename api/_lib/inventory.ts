@@ -237,7 +237,10 @@ export const HOLD_MS = 33 * 60 * 1000;
 
 const HOLD_LUA = `
 redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', ARGV[2])
-if redis.call('ZSCORE', KEYS[2], ARGV[1]) then return 1 end
+if redis.call('ZSCORE', KEYS[2], ARGV[1]) then
+  redis.call('ZADD', KEYS[2], ARGV[3], ARGV[1])
+  return 1
+end
 local stock = tonumber(redis.call('GET', KEYS[1]) or '0')
 if stock < 1 then return -1 end
 if stock - redis.call('ZCARD', KEYS[2]) < 1 then return 0 end
