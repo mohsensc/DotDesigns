@@ -41,6 +41,11 @@ async function fetchInventory(): Promise<InventoryResult> {
   }
 }
 
+export function refreshInventory(): Promise<InventoryResult> {
+  cached = null;
+  return loadInventory();
+}
+
 /** Fetches once per page load and reuses the result for every caller. */
 export function loadInventory(): Promise<InventoryResult> {
   if (!cached) cached = fetchInventory();

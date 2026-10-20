@@ -34,8 +34,9 @@ type Args = {
   items: MediaItem[];
   /** MediaItem id of the cover, not the MediaRef id — refs may not exist yet. */
   coverItemId?: string;
-  quantity: number;
-  notes: string;
+  quantity?: number;
+  expectedQuantity?: number;
+  notes?: string;
   /** Photos she removed from a piece that already had them. */
   removed: MediaRef[];
   /** Read late: a retry after re-signing in is working off a newer catalog. */
@@ -53,7 +54,7 @@ type Args = {
  * still in memory; everything else comes back as a plain Error to show.
  */
 export async function publishPiece(args: Args): Promise<Catalog> {
-  const { piece, items, quantity, notes, removed, getExpectedUpdatedAt, onUploaded, onPhase, signal } = args;
+  const { piece, items, quantity, expectedQuantity, notes, removed, getExpectedUpdatedAt, onUploaded, onPhase, signal } = args;
   const stopIfCancelled = () => {
     if (signal?.aborted) throw new PublishCancelled();
   };
@@ -72,7 +73,7 @@ export async function publishPiece(args: Args): Promise<Catalog> {
     try {
       ref = await uploadMedia(blob, {
         pieceId: piece.id,
-        filename: file.name,
+        filename: blob.type === "image/jpeg" ? file.name.replace(/\.[^.]+$/, "") + ".jpg" : file.name,
         kind: item.kind,
         onProgress: fraction => onPhase({ name: "uploading", done, total: pending.length, fraction }),
         signal,
@@ -106,12 +107,12 @@ export async function publishPiece(args: Args): Promise<Catalog> {
   onPhase({ name: "posting" });
   let catalog: Catalog;
   try {
-    catalog = await savePiece(saved, quantity, notes, getExpectedUpdatedAt());
+    catalog = await savePiece(saved, quantity, notes, getExpectedUpdatedAt(), expectedQuantity);
   } catch (err) {
     // Someone saved on another device between her opening this and hitting
     // Share. Their catalog is the truth now; put her piece on top of it once.
-    if (!(err instanceof CatalogConflictError)) throw err;
-    catalog = await savePiece(saved, quantity, notes, err.catalog.updatedAt);
+    if (!(err instanceof CatalogConflictError) || err.stock) throw err;
+    catalog = await savePiece(saved, quantity, notes, err.catalog.updatedAt, expectedQuantity);
   }
 
   // Best effort — a photo she deleted that lingers in storage costs nothing

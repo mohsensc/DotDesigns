@@ -26,6 +26,8 @@ export default function Shop() {
   const [attempt, setAttempt] = useState(0);
   const [filter, setFilter] = useState<Filter>("all");
   const restored = useRef(false);
+  const statusRef = useRef<HTMLParagraphElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +46,12 @@ export default function Shop() {
       cancelled = true;
     };
   }, [attempt]);
+
+  useEffect(() => {
+    if (attempt === 0) return;
+    if (catalog) gridRef.current?.focus();
+    else if (!failed) statusRef.current?.focus();
+  }, [attempt, catalog, failed]);
 
   // Track the position as it happens rather than reading it on the way out.
   // By the time an unmount cleanup runs, React has already pulled the grid out
@@ -164,7 +172,7 @@ export default function Shop() {
       </nav>
 
       {catalog === null && failed ? (
-        <div className="shop__failed">
+        <div className="shop__failed" role="alert">
           <p className="shop__failed-title">Couldn't load the catalog.</p>
           <p className="shop__failed-note">
             Something went wrong at our end. Try again, or write to{" "}
@@ -178,11 +186,13 @@ export default function Shop() {
           </button>
         </div>
       ) : catalog === null ? (
-        <p className="shop__status">Loading the catalog…</p>
+        <p className="shop__status" role="status" tabIndex={-1} ref={statusRef}>
+          Loading the catalog…
+        </p>
       ) : shown.length === 0 ? (
         <p className="shop__status">Nothing in this category right now.</p>
       ) : (
-        <div className="shop__grid">
+        <div className="shop__grid" tabIndex={-1} ref={gridRef}>
           {shown.map((p, i) => (
             // The first row is above the fold on every width; letting it lazy-load
             // just means the visitor watches it arrive.

@@ -22,21 +22,30 @@ a live `whsec_` will not verify a test-mode event.
 ## Registering the webhook
 
 In the Stripe dashboard: Developers -> Webhooks -> Add endpoint. Point it at
-`https://dotdesigns.art/api/stripe-webhook` and subscribe to BOTH:
+`https://dotdesigns.art/api/stripe-webhook` and subscribe to all three:
 
 - `checkout.session.completed`
 - `checkout.session.async_payment_succeeded`
+- `checkout.session.expired`
 
 The second one matters. The handler refuses to move stock for a session that
 isn't paid yet, so a payment method that settles later would never decrement
 if only the first event were registered.
 
-Subscribing to `checkout.session.async_payment_failed` and
-`checkout.session.expired` as well is harmless — the handler acknowledges any
-event it doesn't recognise with a 200 and does nothing. There is deliberately
-nothing to undo on those two: stock is only ever decremented once a payment
-has actually succeeded, never optimistically at checkout time, so a failed or
-abandoned session leaves stock untouched.
+Starting a checkout holds the piece for 33 minutes and the Stripe session
+expires a minute before that. Stock itself only goes down when a payment
+succeeds. `checkout.session.expired` hands a hold back early; without it the
+hold simply runs out on its own. A piece held by one buyer answers other buyers
+with "someone is checking out this piece" until then.
+
+A paid session is recorded once by its session id, so Stripe redelivering an
+event can't take stock twice. If the stock write fails the webhook answers 500
+and Stripe retries. If a payment lands for a piece with none left (an async
+payment that cleared after its hold ran out), the webhook logs a line starting
+"stripe-webhook: paid for slug" in the Vercel logs. That buyer needs a refund.
+
+`async_payment_failed` can be subscribed too; the handler acknowledges it and
+does nothing.
 
 Reveal the endpoint's signing secret afterwards — that's
 `STRIPE_WEBHOOK`.

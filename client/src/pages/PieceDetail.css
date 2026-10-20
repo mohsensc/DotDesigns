@@ -90,7 +90,7 @@
   font-size: 0.66rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--dot-ink-soft) 60%, transparent);
+  color: var(--dot-ink-soft);
 }
 
 .pd__dots {
@@ -502,6 +502,7 @@
   gap: 16px;
   align-items: flex-start;
   padding: clamp(48px, 12vw, 120px) var(--dot-gutter);
+  min-height: 70vh;
 }
 
 .pd__empty-title {
@@ -623,4 +624,9 @@
   .pd__dot::before {
     transition: none;
   }
+}
+
+.pd__title:focus,
+.pd__status:focus {
+  outline: none;
 }

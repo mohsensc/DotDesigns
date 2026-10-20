@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { loadCatalog, resolveMedia } from "../lib/catalog-store";
 import { sendInquiry, looksLikeEmail, CONTACT_EMAIL } from "../lib/inquiry";
-import { loadInventory, type StockEntry } from "../lib/inventory";
+import { loadInventory, refreshInventory, type StockEntry } from "../lib/inventory";
 import { useDocumentTitle } from "../lib/use-document-title";
 import {
   coverOf,
@@ -21,6 +21,14 @@ import "./PieceDetail.css";
 type SendState = "idle" | "sending" | "sent" | "failed";
 type BuyState = "idle" | "sending" | "failed";
 
+function newHoldId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `h${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+  }
+}
+
 export default function PieceDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -31,6 +39,10 @@ export default function PieceDetail() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [stock, setStock] = useState<StockEntry | undefined>(undefined);
   const [ledgerDown, setLedgerDown] = useState(false);
+  const [inventoryPending, setInventoryPending] = useState(true);
+  const holdId = useRef(newHoldId());
+  const loadingRef = useRef<HTMLParagraphElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   // Raised while a dot or thumb is animating the track. Without it the
   // observer below reports every slide the smooth scroll flies past, and the
@@ -57,15 +69,25 @@ export default function PieceDetail() {
 
   useEffect(() => {
     let cancelled = false;
+    setInventoryPending(true);
     loadInventory().then(inventory => {
       if (cancelled) return;
       setStock(inventory.pieces[slug ?? ""]);
       setLedgerDown(inventory.unavailable);
+      setInventoryPending(false);
     });
     return () => {
       cancelled = true;
     };
   }, [slug]);
+
+  useEffect(() => {
+    function onShow(e: PageTransitionEvent) {
+      if (e.persisted) setBuyState("idle");
+    }
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
 
   // Arriving from the grid, which restores its own scroll position on the way
   // back — without this you'd land halfway down the piece page.
@@ -74,6 +96,12 @@ export default function PieceDetail() {
   }, [slug]);
 
   const piece = useMemo(() => catalog?.pieces.find(p => p.slug === slug), [catalog, slug]);
+
+  useEffect(() => {
+    if (attempt === 0) return;
+    if (piece) headingRef.current?.focus();
+    else if (!catalogFailed) loadingRef.current?.focus();
+  }, [attempt, piece, catalogFailed]);
 
   useDocumentTitle(piece?.title);
 
@@ -144,7 +172,7 @@ export default function PieceDetail() {
 
   // The sheet is the live stock number and wins over the catalog's own status
   // whenever there's an entry for this slug — same rule as the shop grid.
-  const soldOut = stock ? stock.soldOut : piece?.status === "sold";
+  const soldOut = piece?.status === "sold" || (stock ? stock.soldOut : false);
   // Reserved and sold ask for different things: one wants telling when it frees
   // up, the other wants a comparable commission. Sold wins if the ledger says
   // the piece is gone, whatever the catalog still calls it.
@@ -157,7 +185,7 @@ export default function PieceDetail() {
   // /api/checkout reads the sheet row to price and decrement stock, so a
   // piece with no sheet entry (or an unpriced one, or a sold-out one) is
   // never purchasable — the Buy button stays disabled for all three.
-  const canBuy = !!stock && !stock.soldOut && stock.price != null;
+  const canBuy = !!stock && !stock.soldOut && stock.price != null && piece?.status === "available";
   const lowStock = !!stock && !stock.soldOut && stock.quantity > 0 && stock.quantity <= 2;
 
   // Whether the visitor has touched the message box — once they have, the
@@ -197,12 +225,16 @@ export default function PieceDetail() {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug: piece.slug }),
+        body: JSON.stringify({ slug: piece.slug, holdId: holdId.current }),
       });
       const body = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
       if (!res.ok || !body?.url) {
         setBuyState("failed");
         setBuyError(body?.error || "Couldn't start checkout. Please try again.");
+        if (res.status === 409) {
+          const inventory = await refreshInventory();
+          setStock(inventory.pieces[piece.slug]);
+        }
         return;
       }
       window.location.href = body.url;
@@ -227,7 +259,7 @@ export default function PieceDetail() {
   if (!piece && catalogFailed) {
     return (
       <SiteChrome className="pd pd--empty">
-        <p className="pd__eyebrow">Not loaded</p>
+        <p className="pd__eyebrow" role="alert">Not loaded</p>
         <h1 className="pd__empty-title">Couldn't load the catalog.</h1>
         <p className="pd__failed-note">
           Something went wrong at our end. Try again, or write to{" "}
@@ -246,7 +278,9 @@ export default function PieceDetail() {
   if (!piece) {
     return (
       <SiteChrome className="pd pd--empty">
-        <p className="pd__status">Loading…</p>
+        <p className="pd__status" role="status" tabIndex={-1} ref={loadingRef}>
+          Loading…
+        </p>
       </SiteChrome>
     );
   }
@@ -379,7 +413,9 @@ export default function PieceDetail() {
             {CATEGORY_LABELS[piece.category]}
             {piece.year ? ` · ${piece.year}` : ""}
           </p>
-          <h1 className="pd__title">{piece.title}</h1>
+          <h1 className="pd__title" tabIndex={-1} ref={headingRef}>
+            {piece.title}
+          </h1>
 
           <p className="pd__pricerow">
             <span className="pd__price">{formatPrice(displayPrice)}</span>
@@ -403,7 +439,11 @@ export default function PieceDetail() {
               <span className="pd__bar-label">{CATEGORY_LABELS[piece.category]}</span>
               <span className="pd__bar-price">{soldOut ? "Sold out" : formatPrice(displayPrice)}</span>
             </div>
-            {canBuy ? (
+            {inventoryPending ? (
+              <button type="button" className="pd__buy" disabled>
+                Checking stock…
+              </button>
+            ) : canBuy ? (
               <button type="button" className="pd__buy" onClick={handleBuy} disabled={buyState === "sending"}>
                 {buyState === "sending" ? "Redirecting…" : "Buy now"}
               </button>
@@ -418,7 +458,7 @@ export default function PieceDetail() {
               <strong className="pd__error-mark">Error:</strong> {buyError}
             </p>
           )}
-          {ledgerDown && !soldOut && !reserved && (
+          {ledgerDown && !soldOut && !reserved && displayPrice != null && (
             <p className="pd__note">
               Checkout is unavailable right now, so the price above is the catalog's.{" "}
               <a href="#piece-enquire">Ask to buy this piece</a> and we'll take it from there.

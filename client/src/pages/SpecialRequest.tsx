@@ -82,7 +82,6 @@ export default function SpecialRequest() {
     if (touched && !isValid && summaryFocusTick > 0) {
       summaryRef.current?.focus();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summaryFocusTick]);
 
   useEffect(() => {

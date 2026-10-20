@@ -21,8 +21,7 @@ import AmbientAudio from "../components/AmbientAudio.tsx";
 //
 // brandLine is the accessible name of the logo lockup, which is this page's h1.
 // deckCta holds the one call to action; the engine renders only its label/href,
-// so those are
-// referenced into CONFIG while contactLines are kept here as the source of
+// so those are referenced into CONFIG while contactLines are kept here as the source of
 // truth for the closing contact block.
 // ---------------------------------------------------------------------------
 

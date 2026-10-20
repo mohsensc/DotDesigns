@@ -23,6 +23,15 @@ import { newId, slugify } from "./util.ts";
 type Route = { name: "grid" } | { name: "piece"; id: string };
 type Composing = { mode: "new" | "edit"; piece: Piece } | null;
 
+function freeSlug(title: string, pieces: Piece[]): string {
+  const base = slugify(title);
+  const taken = new Set(pieces.map(p => p.slug));
+  if (!taken.has(base)) return base;
+  let counter = 2;
+  while (taken.has(`${base}-${counter}`)) counter++;
+  return `${base}-${counter}`;
+}
+
 function blankPiece(catalog: Catalog | null): Piece {
   // Lowest order sorts first, so a new post lands at the top of her grid the
   // way it would on Instagram — same key the shop sorts by.
@@ -134,6 +143,8 @@ export default function Studio() {
       } else if (err instanceof CatalogConflictError) {
         applyCatalog(err.catalog);
         setActionError("Something else changed first. Have a look and try again.");
+      } else if (err instanceof TypeError) {
+        setActionError("Couldn't reach the website. Check your connection and try again.");
       } else {
         setActionError(err instanceof Error ? err.message : "That didn't go through. Try again.");
       }
@@ -162,7 +173,7 @@ export default function Studio() {
     // wrote, so that one becomes 1 or nothing goes back on sale.
     const quantity = nextStatus === "sold" ? 0 : row && row.quantity > 0 ? row.quantity : 1;
     await run("Saving…", () =>
-      savePiece({ ...piece, status: nextStatus }, quantity, row?.notes ?? "", expectedUpdatedAt()),
+      savePiece({ ...piece, status: nextStatus }, quantity, row?.notes ?? "", expectedUpdatedAt(), row?.quantity),
     );
   }
 
@@ -171,8 +182,7 @@ export default function Studio() {
     const copy: Piece = {
       ...blankPiece(catalogRef.current),
       title,
-      // The copy needs its own URL. The server makes it unique from here.
-      slug: slugify(title),
+      slug: freeSlug(title, catalogRef.current?.pieces ?? []),
       category: piece.category,
       price: piece.price,
       blurb: piece.blurb,
@@ -185,8 +195,8 @@ export default function Studio() {
       // either one blanks the other.
       status: "draft",
     };
-    await run("Copying…", () => savePiece(copy, 0, "", expectedUpdatedAt()));
-    setRoute({ name: "grid" });
+    const copied = await run("Copying…", () => savePiece(copy, 0, "", expectedUpdatedAt()));
+    if (copied) setRoute({ name: "grid" });
   }
 
   function moveInDraft(id: string, direction: -1 | 1) {
@@ -239,6 +249,7 @@ export default function Studio() {
             piece={composing.piece}
             getExpectedUpdatedAt={expectedUpdatedAt}
             onSessionEnded={endSession}
+            onCatalogChanged={applyCatalog}
             onCancel={() => setComposing(null)}
             onPosted={(next, pieceId) => {
               applyCatalog(next);
@@ -251,7 +262,7 @@ export default function Studio() {
           <div className="screen">
             <ScreenHeader title="Stock" />
             <div className="screen-body">
-              <InventoryTable session={session} onSessionEnded={endSession} />
+              <InventoryTable session={session} onSessionEnded={endSession} onSaved={() => void loadPieces()} />
             </div>
           </div>
         ) : openPiece ? (
@@ -289,6 +300,8 @@ export default function Studio() {
           <div className="screen">
             <ScreenHeader
               title={reordering ? "Put them in order" : "Your pieces"}
+              onBack={reordering ? () => setDraftOrder(null) : undefined}
+              backLabel="Cancel reordering"
               extra={
                 reordering ? (
                   <button

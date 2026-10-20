@@ -53,7 +53,9 @@ export default function ConfirmDialog({
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     cancelRef.current?.focus();
-    return () => opener?.focus?.();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
   }, []);
 
   return (

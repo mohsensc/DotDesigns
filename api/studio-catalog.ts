@@ -11,6 +11,7 @@ import {
 } from "./_lib/catalog-shape";
 import {
   MIN_PRICE,
+  getRow as getInventoryRow,
   parseAmount,
   readQuantityIntent,
   removePiece as removeInventoryRow,
@@ -132,13 +133,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // The catalog is what the shop reads; the inventory row is what the
       // checkout charges against. Both get written on one tap so they can't
       // disagree about a piece she just edited.
+      const notes =
+        typeof body.notes === "string"
+          ? body.notes
+          : ((await getInventoryRow(renamedFrom ?? piece.slug))?.notes ?? "");
       const stockKept = await upsertInventoryRow(
         {
           slug: piece.slug,
           title: piece.title,
           price: piece.price,
           quantity: intent.quantity,
-          notes: asString(body.notes),
+          notes,
         },
         { expected: intent.expected, fromSlug: renamedFrom },
       );
@@ -150,6 +155,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(409).json({
           error: "The stock count changed while you were editing, so it was left as it is. Check it and try again.",
           catalog: write.catalog,
+          stock: true,
         });
         return;
       }

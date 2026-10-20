@@ -18,13 +18,14 @@ import { publishPiece, PublishCancelled, type MediaItem, type PublishPhase } fro
 import ConfirmDialog from "./ConfirmDialog.tsx";
 import ScreenHeader from "./ScreenHeader.tsx";
 import { CatalogConflictError, loadInventoryRow, resolveMedia, StudioAuthError } from "./seam.ts";
-import { newId, slugify } from "./util.ts";
+import { newId, readPrice, slugify } from "./util.ts";
 
 type Props = {
   mode: "new" | "edit";
   piece: Piece;
   getExpectedUpdatedAt: () => string;
   onPosted: (catalog: Catalog, pieceId: string) => void;
+  onCatalogChanged: (catalog: Catalog) => void;
   onCancel: () => void;
   onSessionEnded: () => void;
 };
@@ -48,14 +49,6 @@ function computeSize(unit: SizeUnit, h: string, l: string, d: string, hasDepth: 
   return size;
 }
 
-/** "$1,200" and "1200" both mean 1200. Blank means price on request. */
-function parsePrice(s: string): number | null {
-  const cleaned = s.replace(/[$,\s]/g, "");
-  if (cleaned === "") return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
-}
-
 function itemsFrom(piece: Piece): MediaItem[] {
   return piece.media.map(m => ({ id: m.id, kind: m.kind, caption: m.caption ?? "", ref: m }));
 }
@@ -75,7 +68,15 @@ type RemovedItem = { item: MediaItem; index: number; wasCover: boolean };
 
 // Two screens, in Instagram's order: pick the photos, then write about them.
 // Edit drops straight into the second one — most edits are a price or a typo.
-export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, onCancel, onSessionEnded }: Props) {
+export default function Composer({
+  mode,
+  piece,
+  getExpectedUpdatedAt,
+  onPosted,
+  onCatalogChanged,
+  onCancel,
+  onSessionEnded,
+}: Props) {
   const [step, setStep] = useState<"pick" | "details">(mode === "new" ? "pick" : "details");
   const [items, setItems] = useState<MediaItem[]>(() => itemsFrom(piece));
   const [coverItemId, setCoverItemId] = useState<string | undefined>(piece.coverId);
@@ -91,6 +92,11 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
   const [quantityStr, setQuantityStr] = useState("1");
   const [notes, setNotes] = useState("");
   const [inventoryPrefillFailed, setInventoryPrefillFailed] = useState(false);
+  const [stockState, setStockState] = useState<"loading" | "loaded" | "missing" | "failed">(
+    piece.slug ? "loading" : "missing",
+  );
+  const loadedQuantity = useRef<number | undefined>(undefined);
+  const touched = useRef({ quantity: false, notes: false });
   const [category, setCategory] = useState<PieceCategory>(piece.category);
   const [status, setStatus] = useState<PieceStatus>(piece.status);
   const [blurb, setBlurb] = useState(piece.blurb);
@@ -145,23 +151,63 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
   }, []);
 
   useEffect(() => {
-    if (!piece.slug) return; // nothing in stock for a piece that isn't posted yet
+    if (!piece.slug) return;
     let cancelled = false;
     loadInventoryRow(piece.slug)
       .then(row => {
-        if (cancelled || !row) return;
-        setQuantityStr(String(row.quantity));
-        setNotes(row.notes);
-        // The prefill isn't her editing, so it moves the baseline with it.
-        baselineRef.current = { ...baselineRef.current, quantityStr: String(row.quantity), notes: row.notes };
+        if (cancelled) return;
+        if (!row) {
+          setStockState("missing");
+          return;
+        }
+        loadedQuantity.current = row.quantity;
+        setStockState("loaded");
+        const patch: Partial<typeof form> = {};
+        if (!touched.current.quantity) {
+          setQuantityStr(String(row.quantity));
+          patch.quantityStr = String(row.quantity);
+        }
+        if (!touched.current.notes) {
+          setNotes(row.notes);
+          patch.notes = row.notes;
+        }
+        baselineRef.current = { ...baselineRef.current, ...patch };
       })
       .catch(() => {
-        if (!cancelled) setInventoryPrefillFailed(true);
+        if (cancelled) return;
+        setStockState("failed");
+        setInventoryPrefillFailed(true);
       });
     return () => {
       cancelled = true;
     };
   }, [piece.slug]);
+
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    function onPopState() {
+      if (dirtyRef.current) {
+        window.history.pushState({ composer: true }, "");
+        setConfirmLeave(true);
+      } else {
+        onCancel();
+      }
+    }
+    if (!window.history.state?.composer) window.history.pushState({ composer: true }, "");
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [onCancel]);
 
   const size = computeSize(unit, heightStr, lengthStr, depthStr, hasDepth);
   const previewPiece: Piece = { ...piece, title, size, dimensions: dimensions || undefined };
@@ -261,20 +307,30 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
     if (busy) return; // one publish at a time — two would race on the same piece
     setError(null);
     setCancelling(false);
+    const priceReading = readPrice(priceStr);
+    if (!priceReading.ok) {
+      setError("That price isn't a plain number. Try something like 1200, at least 0.50, or leave it blank.");
+      return;
+    }
+    const trimmedQuantity = quantityStr.trim();
+    if (status !== "sold" && !/^\d+$/.test(trimmedQuantity)) {
+      setError("How many do you have? A whole number, 0 or more.");
+      return;
+    }
     const controller = new AbortController();
     abortRef.current = controller;
     const finalTitle = title.trim() || "Untitled piece";
     // Sold means none left. Letting her pick Sold and leave "1" here would say
     // sold in the studio while the shop kept selling it.
-    const parsedQuantity = parseInt(quantityStr, 10);
-    const quantity =
-      status === "sold" ? 0 : Number.isFinite(parsedQuantity) ? Math.max(0, parsedQuantity) : 1;
+    const sendsQuantity =
+      status === "sold" || stockState === "loaded" || stockState === "missing" || touched.current.quantity;
+    const quantity = !sendsQuantity ? undefined : status === "sold" ? 0 : Number(trimmedQuantity);
 
     const draft: Piece = {
       ...piece,
       title: finalTitle,
       slug: piece.slug || slugify(finalTitle),
-      price: parsePrice(priceStr),
+      price: priceReading.price,
       year: parseNum(yearStr),
       category,
       status,
@@ -291,7 +347,8 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
         items,
         coverItemId: cover,
         quantity,
-        notes,
+        expectedQuantity: loadedQuantity.current,
+        notes: stockState === "loaded" || stockState === "missing" || touched.current.notes ? notes : undefined,
         removed,
         getExpectedUpdatedAt,
         onUploaded: (itemId, ref) =>
@@ -309,6 +366,21 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
       if (err instanceof StudioAuthError) {
         setError("Your session ended. Sign in again, then tap Retry — nothing here is lost.");
         onSessionEnded();
+        return;
+      }
+      if (err instanceof CatalogConflictError && err.stock) {
+        onCatalogChanged(err.catalog);
+        try {
+          const row = await loadInventoryRow(draft.slug);
+          if (row) {
+            loadedQuantity.current = row.quantity;
+            setQuantityStr(String(row.quantity));
+            baselineRef.current = { ...baselineRef.current, quantityStr: String(row.quantity) };
+          }
+        } catch {
+          /* the message below still tells her to check it */
+        }
+        setError("Your changes are saved, but the stock count changed while you were editing, so it was left alone. Check the count above.");
         return;
       }
       if (err instanceof CatalogConflictError) {
@@ -536,8 +608,8 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
             </div>
 
             <p className="field-hint" id="price-hint">
-              {priceStr.trim() !== "" && parsePrice(priceStr) == null
-                ? "That price has something in it that isn't a number — it'll post as price on request."
+              {!readPrice(priceStr).ok
+                ? "That isn't a plain number, like 1200, and it has to be at least 0.50."
                 : "Leave it blank and the shop asks people to enquire."}
             </p>
 
@@ -548,7 +620,10 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
                 inputMode="numeric"
                 value={status === "sold" ? "0" : quantityStr}
                 disabled={status === "sold"}
-                onChange={e => setQuantityStr(e.target.value)}
+                onChange={e => {
+                  touched.current.quantity = true;
+                  setQuantityStr(e.target.value);
+                }}
               />
             </label>
             <p className="field-hint">
@@ -558,7 +633,7 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
             </p>
             {inventoryPrefillFailed && (
               <p className="field-hint field-hint-warn">
-                Couldn't check your stock — posting now will overwrite the count and notes there with what's here.
+                Couldn't check your stock, so the count is left as it is unless you change it here.
               </p>
             )}
 
@@ -692,7 +767,10 @@ export default function Composer({ mode, piece, getExpectedUpdatedAt, onPosted, 
 
             <label className="field">
               <span>Private note — only you ever see this</span>
-              <input type="text" value={notes} onChange={e => setNotes(e.target.value)} />
+              <input type="text" value={notes} onChange={e => {
+                  touched.current.notes = true;
+                  setNotes(e.target.value);
+                }} />
             </label>
           </>
         )}

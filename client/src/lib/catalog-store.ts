@@ -26,14 +26,16 @@ export class StudioAuthError extends Error {
 /** A 409. `catalog` is what the server actually has right now. */
 export class CatalogConflictError extends Error {
   catalog: Catalog;
-  constructor(message: string, catalog: Catalog) {
+  stock: boolean;
+  constructor(message: string, catalog: Catalog, stock = false) {
     super(message);
     this.name = "CatalogConflictError";
     this.catalog = catalog;
+    this.stock = stock;
   }
 }
 
-type Payload = { catalog?: Catalog; error?: string };
+type Payload = { catalog?: Catalog; error?: string; stock?: boolean };
 
 async function readPayload(res: Response): Promise<Payload> {
   try {
@@ -50,6 +52,7 @@ async function catalogFrom(res: Response): Promise<Catalog> {
     throw new CatalogConflictError(
       body.error || "Someone saved before you.",
       body.catalog ?? { version: 1, pieces: [], updatedAt: "" },
+      body.stock === true,
     );
   }
   if (!res.ok) throw new Error(body.error || "Couldn't reach the catalog. Try again in a moment.");
@@ -86,14 +89,15 @@ export async function loadInventoryRow(slug: string): Promise<{ quantity: number
 /** Saves the piece and its price/stock row in one request. */
 export async function savePiece(
   piece: Piece,
-  quantity: number,
-  notes: string,
+  quantity: number | undefined,
+  notes: string | undefined,
   expectedUpdatedAt: string,
+  expectedQuantity?: number,
 ): Promise<Catalog> {
   const res = await fetch("/api/studio-catalog", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ piece, quantity, notes, expectedUpdatedAt }),
+    body: JSON.stringify({ piece, quantity, expectedQuantity, notes, expectedUpdatedAt }),
   });
   return catalogFrom(res);
 }
