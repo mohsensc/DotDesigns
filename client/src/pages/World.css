@@ -149,6 +149,7 @@ html.dot-world body::-webkit-scrollbar {
 
 .dot-brand {
   position: fixed;
+  margin: 0;
   top: clamp(12px, 2vw, 20px);
   left: clamp(18px, 5vw, 64px);
   z-index: 200; /* above the engine topbar (z-index 50) */
