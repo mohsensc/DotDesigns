@@ -90,7 +90,7 @@
   font-size: 0.66rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--dot-ink-soft) 60%, transparent);
+  color: color-mix(in srgb, var(--dot-ink-soft) 85%, transparent);
 }
 
 .pd__dots {
