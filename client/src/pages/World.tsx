@@ -336,9 +336,9 @@ export default function World() {
           mark + "Designs" + descriptor — so it IS the brand chrome; the engine's
           placeholder brand is reserved-but-hidden in World.css so the nav clears
           it. See the brandLine note below re: why no second tagline is drawn. */}
-      <div className="dot-brand" aria-label={`DOT Designs: ${brandLine}`}>
+      <h1 className="dot-brand" aria-label={`DOT Designs: ${brandLine}`}>
         <img className="dot-brand__logo" src={dotGold} alt="DOT Designs" />
-      </div>
+      </h1>
       {/* Portalled into the engine's own topbar rather than floated over it, so
           it's a real flex child and lines up with the nav and the CTA by itself.
           Floating it meant hand-matching their vertical offset and reserving

@@ -62,7 +62,7 @@ export default function PieceDetail() {
 
   const piece = useMemo(() => catalog?.pieces.find(p => p.slug === slug), [catalog, slug]);
 
-  useDocumentTitle(piece?.title);
+  useDocumentTitle(piece?.title ?? (catalog ? "Not found" : null));
 
   // Cover first, then the rest of the piece's media in stored order.
   const orderedMedia: MediaRef[] = useMemo(() => {

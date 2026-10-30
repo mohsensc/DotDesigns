@@ -152,3 +152,9 @@ test("logout clears the cookie even while locked", async () => {
   assert.equal(res.statusCode, 200);
   assert.match(String(res.headers["Set-Cookie"]), /Max-Age=0/);
 });
+
+test("a malformed session cookie reads as signed out instead of throwing", async () => {
+  const res = await run({ method: "GET", cookies: { [session.STUDIO_COOKIE_NAME]: "%E0%A4%A" } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.unlocked, false);
+});
